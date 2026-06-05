@@ -1,20 +1,27 @@
 const { Queue } = require('bullmq');
 const IORedis = require('ioredis');
 
-const redisOptions = {
-	maxRetriesPerRequest: null,
-};
+const redisUri = process.env.REDIS_URI;
+let notificationQueue;
 
-if (process.env.REDIS_TLS === 'true') {
-	redisOptions.tls = {
-		rejectUnauthorized: false,
-	};
+if (!redisUri) {
+  console.warn('⚠️ REDIS_URI not configured. Notification queue is disabled.');
+  notificationQueue = {
+    add: async () => {
+      console.warn('⚠️ Notification queue disabled. Job discarded.');
+    },
+  };
+} else {
+  const connection = new IORedis(redisUri, {
+    maxRetriesPerRequest: null,
+  });
+
+  connection.on('error', (error) => {
+    console.warn(`⚠️ Redis connection error for NotificationQueue: ${error.message}`);
+  });
+
+  notificationQueue = new Queue('NotificationQueue', { connection });
+  console.log('✅ BullMQ NotificationQueue initialized');
 }
-
-const connection = new IORedis(process.env.REDIS_URI, redisOptions);
-
-const notificationQueue = new Queue('NotificationQueue', { connection });
-
-console.log('✅ BullMQ NotificationQueue initialized');
 
 module.exports = notificationQueue;

@@ -72,14 +72,36 @@ const startBackgroundServices = async (dbConnection) => {
     initInventoryAlertJob();
     await initScheduler();
     console.log('✅ Report scheduler initialized');
+
+
 };
 
 server.listen(PORT, async () => {
+    let mlStatus = 'Disconnected';
+    let modelStatus = 'Not Loaded';
+    const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
+
+    try {
+        const axios = require('axios');
+        const res = await axios.get(`${FLASK_API_URL}/health`, { timeout: 3000 });
+        mlStatus = `Connected (${FLASK_API_URL})`;
+        modelStatus = res.data.model_loaded ? 'Loaded (recommendation_model.pkl)' : 'Not Loaded';
+    } catch (error) {
+        if (error.response) {
+            mlStatus = `Connected (${FLASK_API_URL})`;
+            modelStatus = error.response.data?.model_loaded ? 'Loaded (recommendation_model.pkl)' : 'Not Loaded';
+        } else {
+            mlStatus = `Disconnected (${error.message})`;
+        }
+    }
+
     console.log('================================================================');
     console.log('POS RETAIL SYSTEM SERVER RUNNING');
     console.log(`Running Environment : ${process.env.NODE_ENV || 'development'}`);
     console.log(`Listening Port      : ${PORT}`);
     console.log(`Healthcheck Route   : http://localhost:${PORT}/api/health`);
+    console.log(`ML Service          : ${mlStatus}`);
+    console.log(`Model Status        : ${modelStatus}`);
     console.log('================================================================');
 
     const dbConnection = await connectDB();

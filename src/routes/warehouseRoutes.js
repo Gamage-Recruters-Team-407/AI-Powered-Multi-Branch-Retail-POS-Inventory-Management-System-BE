@@ -12,15 +12,15 @@ const {
 router.use(protect);
 
 // ── Warehouse ───────────────────────────────
-router.get("/",    getAllWarehouses);
-router.get("/:id", getWarehouseById);
-router.post("/",   authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), createWarehouse);
-router.put("/:id", authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), updateWarehouse);
+router.get("/",       getAllWarehouses);
+router.get("/:id",    getWarehouseById);
+router.post("/",      authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), createWarehouse);
+router.put("/:id",    authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), updateWarehouse);
 router.delete("/:id", authorizeRoles("SUPER_ADMIN", "ADMIN"), deleteWarehouse);
 
 // ── Zones ───────────────────────────────────
-router.get("/:id/zones",  getZonesByWarehouse);
-router.post("/:id/zones", authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), createZone);
+router.get("/:id/zones",        getZonesByWarehouse);
+router.post("/:id/zones",       authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), createZone);
 router.put("/zones/:zoneId",    authorizeRoles("SUPER_ADMIN", "ADMIN", "MANAGER"), updateZone);
 router.delete("/zones/:zoneId", authorizeRoles("SUPER_ADMIN", "ADMIN"), deleteZone);
 
