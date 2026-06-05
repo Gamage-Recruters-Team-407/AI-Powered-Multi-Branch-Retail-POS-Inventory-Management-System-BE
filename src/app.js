@@ -48,6 +48,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const returnsRoutes = require('./routes/returnsRoutes');
+const reorderRoutes = require('./routes/reorderRoutes');
 
 // Import routes from Tharsiga — Reporting Module
 const reportRoutes = require('./routes/reportRoutes');
@@ -72,6 +73,7 @@ app.use('/api/returns', returnsRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/stock-transfers', stockTransferRoutes);
+app.use('/api/reorders', reorderRoutes);
 
 // AI, Analytics & Others
 app.use('/api/recommendations', recommendationsRoutes);
@@ -100,7 +102,6 @@ app.get('/health', (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Server running' });
 });
-
 // 404 Handler
 app.use((req, res) => {
     res.status(404).json({

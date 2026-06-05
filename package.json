@@ -4,8 +4,8 @@
   "description": "AI-Powered Multi-Branch Retail POS & Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches. It uses AI for sales forecasting, inventory optimization, analytics, and real-time business insights.",
   "main": "src/server.js",
   "scripts": {
-    "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "verify": "node scripts/verify-backend.js",
     "seed:demo": "node seed_demo_data.js",
     "seed:transfer-test": "node scripts/seedStockTransferTest.js",
