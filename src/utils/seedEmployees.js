@@ -1,17 +1,50 @@
+const mongoose = require("mongoose");
 const Employee = require("../models/Employee");
+const User = require("../models/User");
 const EmployeeSchedule = require("../models/EmployeeSchedule");
 const EmployeeAttendance = require("../models/EmployeeAttendance");
 const EmployeePerformance = require("../models/EmployeePerformance");
 
 const seedEmployees = async () => {
     try {
+        // Step 1: Migrate/link any legacy employee documents that don't have a linked user reference
+        const legacyEmps = await Employee.find({ $or: [{ user: { $exists: false } }, { user: null }] });
+        if (legacyEmps.length > 0) {
+            console.log(`🔧 Found ${legacyEmps.length} legacy employees without user references. Running migration...`);
+            for (const emp of legacyEmps) {
+                if (!emp.email) continue;
+                const emailClean = emp.email.trim().toLowerCase();
+                const validBranch = (emp.branch && mongoose.Types.ObjectId.isValid(emp.branch)) ? emp.branch : undefined;
+                emp.branch = validBranch;
+
+                let authUser = await User.findOne({ email: emailClean });
+                if (!authUser) {
+                    authUser = await User.create({
+                        firstName: emp.firstName,
+                        lastName: emp.lastName,
+                        name: `${emp.firstName} ${emp.lastName}`.trim(),
+                        email: emailClean,
+                        password: "password123",
+                        phone: emp.phone,
+                        role: emp.role ? emp.role.toUpperCase() : "CASHIER",
+                        branch: validBranch,
+                        isActive: emp.status === "Active"
+                    });
+                    console.log(`  Created new auth user for ${emp.firstName} ${emp.lastName}`);
+                }
+                emp.user = authUser._id;
+                await emp.save();
+                console.log(`  Linked employee ${emp.firstName} ${emp.lastName} to user ${authUser._id}`);
+            }
+        }
+
         const count = await Employee.countDocuments();
         if (count > 0) {
             console.log("ℹ️ Employees database already has records. Skipping seeding.");
             return;
         }
 
-        console.log("🌱 Seeding Employees database...");
+        console.log("🌱 Seeding Employees and corresponding Users database...");
 
         const initialEmployees = [
             {
@@ -21,7 +54,7 @@ const seedEmployees = async () => {
                 email: "nimal.p@pos.com",
                 phone: "+94 77 123 4567",
                 role: "manager",
-                branch: "1",
+                branch: "6a1f169080d2295486a83fb5",
                 status: "Active",
                 salary: 75000,
                 joiningDate: new Date("2024-01-15"),
@@ -36,7 +69,7 @@ const seedEmployees = async () => {
                 email: "kasun.j@pos.com",
                 phone: "+94 71 987 6543",
                 role: "cashier",
-                branch: "1",
+                branch: "6a1f169080d2295486a83fb5",
                 status: "Active",
                 salary: 45000,
                 joiningDate: new Date("2024-03-10"),
@@ -50,8 +83,8 @@ const seedEmployees = async () => {
                 lastName: "Fernando",
                 email: "sunil.f@pos.com",
                 phone: "+94 75 444 5555",
-                role: "inventory",
-                branch: "2",
+                role: "cashier",
+                branch: "6a1f169080d2295486a83fb6",
                 status: "Active",
                 salary: 48000,
                 joiningDate: new Date("2024-02-01"),
@@ -66,7 +99,7 @@ const seedEmployees = async () => {
                 email: "priya.s@pos.com",
                 phone: "+94 72 222 3333",
                 role: "cashier",
-                branch: "3",
+                branch: "6a1fbd701bb175c7da693d76",
                 status: "Active",
                 salary: 43000,
                 joiningDate: new Date("2024-05-18"),
@@ -81,7 +114,7 @@ const seedEmployees = async () => {
                 email: "amara.d@pos.com",
                 phone: "+94 77 999 8888",
                 role: "admin",
-                branch: "1",
+                branch: "6a1f169080d2295486a83fb5",
                 status: "Active",
                 salary: 95000,
                 joiningDate: new Date("2023-08-01"),
@@ -91,13 +124,53 @@ const seedEmployees = async () => {
             }
         ];
 
-        const createdEmployees = await Employee.insertMany(initialEmployees);
-        console.log(`✅ Seeded ${createdEmployees.length} employees.`);
+        const createdEmployees = [];
+        for (const empData of initialEmployees) {
+            // Check if User already exists with this email
+            let authUser = await User.findOne({ email: empData.email });
+            if (!authUser) {
+                authUser = await User.create({
+                    firstName: empData.firstName,
+                    lastName: empData.lastName,
+                    name: `${empData.firstName} ${empData.lastName}`.trim(),
+                    email: empData.email,
+                    password: "password123", // default password for seeded test staff
+                    phone: empData.phone,
+                    role: empData.role.toUpperCase(),
+                    branch: empData.branch,
+                    isActive: empData.status === "Active"
+                });
+            }
+
+            const emp = await Employee.create({
+                user: authUser._id,
+                employeeId: empData.employeeId,
+                firstName: empData.firstName,
+                lastName: empData.lastName,
+                email: empData.email,
+                phone: empData.phone,
+                role: empData.role.toUpperCase(),
+                salary: empData.salary,
+                branch: empData.branch,
+                joiningDate: empData.joiningDate,
+                photo: empData.photo,
+                status: empData.status,
+                performanceScore: empData.performanceScore,
+                workingStatus: empData.workingStatus
+            });
+            createdEmployees.push(emp);
+        }
+        console.log(`✅ Seeded ${createdEmployees.length} employees and corresponding auth users.`);
 
         const getEmpId = (firstName) => {
             const emp = createdEmployees.find(e => e.firstName === firstName);
             return emp ? emp._id.toString() : null;
         };
+
+        // Clear existing schedules/attendance/performance to re-seed cleanly
+        await EmployeeSchedule.deleteMany({});
+        await EmployeeAttendance.deleteMany({});
+        await EmployeePerformance.deleteMany({});
 
         const initialSchedules = [
             { employeeId: getEmpId("Nimal"), date: "2026-06-03", shift: "Morning", notes: "Opening manager" },

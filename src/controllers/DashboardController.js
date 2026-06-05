@@ -1,4 +1,5 @@
 const DashboardService = require('../services/DashboardService');
+const systemEvents = require('../events/eventBus');
 
 class DashboardController {
   /**
@@ -523,12 +524,30 @@ class DashboardController {
       const stats = await DashboardService.getDashboardStats(options);
 
       if (format === 'json') {
+        systemEvents.emit('SEND_ALERT', {
+          target: { role: 'Admin' },
+          category: 'SYSTEM',
+          type: 'WARNING',
+          title: 'Data Exported',
+          message: 'Dashboard metrics were exported as JSON.',
+          channels: ['in-app'],
+        });
+
         res.status(200).json({
           success: true,
           message: 'Dashboard data exported successfully',
           data: stats,
         });
       } else if (format === 'csv') {
+        systemEvents.emit('SEND_ALERT', {
+          target: { role: 'Admin' },
+          category: 'SYSTEM',
+          type: 'WARNING',
+          title: 'Data Exported',
+          message: 'Dashboard metrics were exported as CSV.',
+          channels: ['in-app'],
+        });
+
         // CSV export logic would go here
         res.status(200).send(JSON.stringify(stats, null, 2));
       } else {

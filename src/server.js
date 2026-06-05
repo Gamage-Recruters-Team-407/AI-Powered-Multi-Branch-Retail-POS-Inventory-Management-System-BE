@@ -1,13 +1,14 @@
 const path = require('path');
 const dns = require('dns');
 
+// Trigger nodemon restart
 require('dotenv').config({
     path: path.resolve(__dirname, '../.env'),
 });
 
-if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first');
-}
+// if (dns.setDefaultResultOrder) {
+//     dns.setDefaultResultOrder('ipv4first');
+// }
 
 const http = require('http');
 const { Server } = require('socket.io');
@@ -17,8 +18,10 @@ const connectDB = require('./config/db');
 const sockethandler = require('./sockets/sockethandler');
 const setupNotificationSockets = require('./sockets/notificationSockets');
 const { initInventoryAlertJob } = require('./jobs/inventoryAlertJob');
+require('./services/NotificationService'); // Initialize Notification Event Listeners
+const { initScheduler } = require('./services/reportSchedulerService');
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 const server = http.createServer(app);
 
@@ -67,6 +70,8 @@ const startBackgroundServices = async (dbConnection) => {
 
     await seedEmployees();
     initInventoryAlertJob();
+    await initScheduler();
+    console.log('✅ Report scheduler initialized');
 };
 
 server.listen(PORT, async () => {

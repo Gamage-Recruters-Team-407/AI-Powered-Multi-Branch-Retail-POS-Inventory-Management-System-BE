@@ -1,9 +1,11 @@
 const Branch = require("../models/Branch.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // You will likely need these models too (adjust names if different)
 const Inventory = require("../models/Inventory.js");
 const Sale = require("../models/Sale.js");
-const Employee = require("../models/Employee.js");
+const Employee = require("../models/User.js");
+const systemEvents = require("../events/eventBus.js");
 
 // ===============================
 // CREATE BRANCH
@@ -28,6 +30,10 @@ const createBranch = async (req, res) => {
 // ===============================
 const getAllBranches = async (req, res) => {
   try {
+    if (!isMongoConnected()) {
+      return res.status(200).json([]);
+    }
+
     const branches = await Branch.find().populate("manager");
 
     res.status(200).json(branches);
@@ -72,6 +78,16 @@ const updateBranch = async (req, res) => {
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'INFO',
+      title: 'Branch Details Updated',
+      message: `The details for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch updated successfully",
@@ -165,8 +181,8 @@ const getBranchEmployees = async (req, res) => {
   try {
     const employees = await Employee.find({
       branch: req.params.id,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
     });
-
     res.status(200).json(employees);
   } catch (error) {
     res.status(500).json({
@@ -197,6 +213,7 @@ const getBranchPerformance = async (req, res) => {
 
     const employeeCount = await Employee.countDocuments({
       branch: branchId,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
     });
 
     res.status(200).json({
@@ -227,6 +244,16 @@ const updateBranchSettings = async (req, res) => {
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'WARNING',
+      title: 'Branch Settings Changed',
+      message: `The configuration settings for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch settings updated",

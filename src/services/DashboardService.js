@@ -1,6 +1,6 @@
 const Sale = require('../models/Sale');
 const Inventory = require('../models/Inventory');
-const Employee = require('../models/Employee');
+const Employee = require('../models/User');
 const Branch = require('../models/Branch');
 const Product = require('../models/Product');
 const Customer = require('../models/Customer');
@@ -245,18 +245,19 @@ class DashboardService {
   async calculateEmployeeMetrics(filterQuery) {
     try {
       const employeeData = await Employee.aggregate([
+        { $match: { role: { $in: ['CASHIER', 'MANAGER', 'EMPLOYEE', 'cashier', 'manager', 'employee'] } } },
         {
           $group: {
             _id: null,
             totalEmployees: { $sum: 1 },
             activeEmployees: {
               $sum: {
-                $cond: [{ $eq: ['$status', 'active'] }, 1, 0],
+                $cond: [{ $eq: ['$isActive', true] }, 1, 0],
               },
             },
             inactiveEmployees: {
               $sum: {
-                $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0],
+                $cond: [{ $eq: ['$isActive', false] }, 1, 0],
               },
             },
           },
@@ -306,9 +307,10 @@ class DashboardService {
         .populate('employeeId', 'name email department');
 
       const departmentBreakdown = await Employee.aggregate([
+        { $match: { role: { $in: ['CASHIER', 'MANAGER', 'EMPLOYEE', 'cashier', 'manager', 'employee'] } } },
         {
           $group: {
-            _id: '$department',
+            _id: { $ifNull: ['$role', '$department'] },
             count: { $sum: 1 },
             avgSalary: { $avg: '$salary' },
           },
@@ -350,7 +352,10 @@ class DashboardService {
       const totalBranches = await Branch.countDocuments();
       const totalCustomers = await Customer.countDocuments();
       const totalProducts = await Product.countDocuments();
-      const activeUsers = await Employee.countDocuments({ status: 'active' });
+      const activeUsers = await Employee.countDocuments({
+        isActive: true,
+        role: { $in: ['CASHIER', 'MANAGER', 'EMPLOYEE', 'cashier', 'manager', 'employee'] }
+      });
 
       return {
         totalBranches,

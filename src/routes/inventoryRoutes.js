@@ -56,51 +56,29 @@ const validateUpdateStock = (req, res, next) => {
 
 // --- ROUTES ---
 
+const readRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"];
+const writeRoles = ["SUPER_ADMIN", "ADMIN", "MANAGER"];
+
 // GET /api/inventory - Get list of inventory records with filtering
-router.get(
-    "/",
-    protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
-    getInventory
-);
+router.get("/", protect, authorize(...readRoles), getInventory);
 
 // GET /api/inventory/history - Get inventory movement history log
-router.get(
-    "/history",
-    protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
-    getMovementHistory
-);
+router.get("/history", protect, authorize(...readRoles), getMovementHistory);
 
 // GET /api/inventory/alerts - Fetch low stock alerts (quantity <= reorderPoint)
-router.get(
-    "/alerts",
-    protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
-    getLowStockAlerts
-);
+router.get("/alerts", protect, authorize(...readRoles), getLowStockAlerts);
 
 // GET /api/inventory/summary - Fetch total stock counts, value, low stock sums for dashboard
-router.get(
-    "/summary",
-    protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER"),
-    getInventorySummary
-);
+router.get("/summary", protect, authorize(...readRoles), getInventorySummary);
 
 // GET /api/inventory/:id - Get a single inventory profile detail
-router.get(
-    "/:id",
-    protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"),
-    getInventoryById
-);
+router.get("/:id", protect, authorize(...readRoles), getInventoryById);
 
 // PUT /api/inventory/stock - Update stock quantities safely with transactional logs
 router.put(
     "/stock",
     protect,
-    authorize("SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER", "EMPLOYEE"),
+    authorize(...writeRoles),
     validateUpdateStock,
     updateStock
 );

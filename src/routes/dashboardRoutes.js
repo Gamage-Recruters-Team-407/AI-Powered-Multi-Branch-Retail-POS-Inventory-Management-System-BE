@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DashboardController = require('../controllers/DashboardController');
-const { protect } = require('../middleware/auth');
+const { protect } = require('../middleware/authMiddleware');
 
 /**
  * Dashboard Routes

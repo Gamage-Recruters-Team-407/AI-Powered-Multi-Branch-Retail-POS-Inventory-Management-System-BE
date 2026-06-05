@@ -4,11 +4,13 @@ const employeeAttendanceSchema = new mongoose.Schema(
   {
     employeeId: {
       type: String, // String to support both string mock IDs and ObjectIds
-      required: true
+      required: true,
+      index: true
     },
     date: {
       type: String, // format: "YYYY-MM-DD"
-      required: true
+      required: true,
+      index: true
     },
     clockIn: {
       type: String, // e.g. "07:55 AM"

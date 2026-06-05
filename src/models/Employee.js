@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const employeeSchema = new mongoose.Schema(
 {
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
+
     employeeId: {
         type: String,
         unique: true
@@ -18,9 +24,9 @@ const employeeSchema = new mongoose.Schema(
 
     salary: Number,
 
-    branch:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"Branch"
+    branch: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Branch"
     },
 
     joiningDate: Date,
@@ -55,7 +61,27 @@ const employeeSchema = new mongoose.Schema(
         }
     ]
 },
-{ timestamps: true }
+{ 
+    timestamps: true,
+    toJSON: {
+        virtuals: true,
+        transform: (doc, ret) => {
+            if (ret.joiningDate) {
+                ret.hireDate = ret.joiningDate;
+            }
+            return ret;
+        }
+    },
+    toObject: {
+        virtuals: true,
+        transform: (doc, ret) => {
+            if (ret.joiningDate) {
+                ret.hireDate = ret.joiningDate;
+            }
+            return ret;
+        }
+    }
+}
 );
 
 module.exports = mongoose.model("Employee", employeeSchema);

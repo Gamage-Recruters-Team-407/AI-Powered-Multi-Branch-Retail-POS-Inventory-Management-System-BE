@@ -2,6 +2,7 @@ const Warehouse = require("../models/Warehouse");
 const WarehouseZone = require("../models/WarehouseZone");
 const WarehouseStock = require("../models/WarehouseStock");
 const WarehouseTransaction = require("../models/WarehouseTransaction");
+const systemEvents = require("../events/eventBus");
 
 // ─────────────────────────────────────────────
 // WAREHOUSE CRUD
@@ -234,6 +235,16 @@ const transferStock = async (req, res) => {
       toBranch: toBranch || toWarehouse,
       performedBy: req.user?.id,
       note,
+    });
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'INVENTORY',
+      type: 'INFO',
+      title: 'Warehouse Stock Transfer',
+      message: `Successfully transferred ${quantity} units of product ${product}.`,
+      channels: ['in-app']
     });
 
     res.json({ success: true, message: "Stock transferred successfully" });

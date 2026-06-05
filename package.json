@@ -1,17 +1,22 @@
 {
   "name": "backend-ai-retail-pos-inventory-management-system",
   "version": "1.0.0",
-  "description": "AI-Powered Multi-Branch Retail POS & Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches.",
+  "description": "AI-Powered Multi-Branch Retail POS & Inventory Management System is a smart web-based platform for managing sales, inventory, customers, employees, suppliers, and multiple retail branches. It uses AI for sales forecasting, inventory optimization, analytics, and real-time business insights.",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "verify": "node scripts/verify-backend.js",
+    "seed:demo": "node seed_demo_data.js",
+    "seed:transfer-test": "node scripts/seedStockTransferTest.js",
     "test": "node --test src/tests/*.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.17.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.78.0",
     "cloudinary": "^2.10.0",
@@ -20,10 +25,11 @@
     "express": "^5.2.1",
     "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^6.8.0",
+    "mongoose": "^9.6.3",
     "multer": "^2.1.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.10",
+    "pdfkit": "^0.18.0",
     "socket.io": "^4.8.3",
     "twilio": "^6.0.2"
   },
