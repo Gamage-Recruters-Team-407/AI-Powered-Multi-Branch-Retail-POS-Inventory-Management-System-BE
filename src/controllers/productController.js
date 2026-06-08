@@ -79,7 +79,7 @@ const addProduct = async (req, res) => {
         });
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["Admin", "Manager", "Cashier"] },
             category: "INVENTORY",
             type: "INFO",
             title: "New Product Added",
@@ -229,7 +229,7 @@ const updateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["Admin", "Manager", "Cashier"] },
             category: "INVENTORY",
             type: "INFO",
             title: "Product Updated",
@@ -269,7 +269,7 @@ const deactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { roles: ['Admin', 'Manager'] }, 
+            target: { roles: ['Admin', 'Manager', 'Cashier'] }, 
             category: 'INVENTORY',
             type: 'WARNING',
             title: 'Product Deactivated',
@@ -311,7 +311,7 @@ const deleteProduct = async (req, res) => {
         await Product.findByIdAndDelete(req.params.id);
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["Admin", "Manager", "Cashier"] },
             category: "INVENTORY",
             type: "WARNING",
             title: "Product Deleted",
@@ -488,7 +488,7 @@ const reactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { roles: ['Admin', 'Manager'] }, 
+            target: { roles: ['Admin', 'Manager', 'Cashier'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'Product Reactivated',

@@ -268,6 +268,80 @@ class SupplierService {
 
         return await supplier.save();
     }
+
+    // UPDATE TRANSACTION STATUS
+    async updateTransactionStatus(supplierId, transactionId, status) {
+        const mongoose = require("mongoose");
+        const supplier = await Supplier.findById(supplierId);
+        if (!supplier) return null;
+
+        // 1. Try to find in manual transactions
+        let foundManual = false;
+        if (supplier.transactions) {
+            const tIdx = supplier.transactions.findIndex(t => t.id === transactionId || (t._id && t._id.toString() === transactionId));
+            if (tIdx !== -1) {
+                foundManual = true;
+                const oldStatus = supplier.transactions[tIdx].status;
+                supplier.transactions[tIdx].status = status;
+
+                const amount = Number(supplier.transactions[tIdx].amount || 0);
+                if (oldStatus !== "Delivered" && status === "Delivered") {
+                    supplier.totalSpend = (supplier.totalSpend || 0) + amount;
+                } else if (oldStatus === "Delivered" && status !== "Delivered") {
+                    supplier.totalSpend = Math.max(0, (supplier.totalSpend || 0) - amount);
+                }
+
+                const total = supplier.transactions.length;
+                const delivered = supplier.transactions.filter(t => t.status === "Delivered").length;
+                const cancelled = supplier.transactions.filter(t => t.status === "Cancelled").length;
+
+                supplier.performance.returnRate = total > 0 ? Number(((cancelled / total) * 100).toFixed(2)) : 0.0;
+                supplier.performance.onTimeDelivery = total > 0 ? Number(((delivered / total) * 100).toFixed(2)) : 95;
+
+                let recommendation = "Stable performance. Standard operations recommended.";
+                const rating = supplier.rating || 5.0;
+                const onTime = supplier.performance.onTimeDelivery;
+                const retRate = supplier.performance.returnRate;
+                const quality = supplier.performance.qualityScore || 95;
+                const leadTime = supplier.performance.leadTimeDays || 3;
+
+                if (rating >= 4.5 && onTime >= 90) {
+                    recommendation = "Excellent performance. Highly recommended to renew contract.";
+                } else if (retRate > 10 || quality < 80) {
+                    recommendation = "Caution: High return rate or low quality. Consider auditing quality processes.";
+                } else if (onTime < 80 || leadTime > 5) {
+                    recommendation = "Warning: Slow delivery times. Recommend discussing lead times with supplier.";
+                }
+                supplier.aiRecommendation = recommendation;
+
+                await supplier.save();
+                return { type: "manual", supplier };
+            }
+        }
+
+        // 2. Try to find in Purchase Orders if not found in manual
+        if (!foundManual) {
+            try {
+                const PurchaseOrder = require("../models/PurchaseOrder");
+                let po = await PurchaseOrder.findOne({ poNumber: transactionId });
+                if (!po && mongoose.Types.ObjectId.isValid(transactionId)) {
+                    po = await PurchaseOrder.findById(transactionId);
+                }
+                if (po) {
+                    let poStatus = "Pending";
+                    if (status === "Delivered") poStatus = "Received";
+                    else if (status === "Cancelled") poStatus = "Rejected";
+                    
+                    po.status = poStatus;
+                    await po.save();
+                    return { type: "po", po };
+                }
+            } catch (err) {
+                console.error("Error updating PurchaseOrder in supplier service:", err);
+            }
+        }
+        return null;
+    }
 }
 
 module.exports = new SupplierService();

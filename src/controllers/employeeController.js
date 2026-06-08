@@ -162,13 +162,10 @@ const addEmployee = async (req, res) => {
         // Validate hire date
         if (hireDate) {
             const inputDate = new Date(hireDate);
-            const minDate = new Date("2000-01-01");
-            const maxDate = new Date();
-            maxDate.setHours(23, 59, 59, 999);
-            if (isNaN(inputDate.getTime()) || inputDate < minDate || inputDate > maxDate) {
+            if (isNaN(inputDate.getTime())) {
                 return res.status(400).json({
                     success: false,
-                    message: "Hire date must be a valid date between year 2000 and today."
+                    message: "Hire date must be a valid date."
                 });
             }
         }
@@ -371,13 +368,10 @@ const updateEmployee = async (req, res) => {
         }
         if (hireDate !== undefined) {
             const inputDate = new Date(hireDate);
-            const minDate = new Date("2000-01-01");
-            const maxDate = new Date();
-            maxDate.setHours(23, 59, 59, 999);
-            if (isNaN(inputDate.getTime()) || inputDate < minDate || inputDate > maxDate) {
+            if (isNaN(inputDate.getTime())) {
                 return res.status(400).json({
                     success: false,
-                    message: "Hire date must be a valid date between year 2000 and today."
+                    message: "Hire date must be a valid date."
                 });
             }
         }
@@ -654,6 +648,12 @@ const logAttendance = async (req, res) => {
             message: "Attendance logged successfully"
         });
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: "Attendance record for this date already exists for the employee."
+            });
+        }
         return res.status(500).json({
             success: false,
             message: "Failed to log attendance.",
@@ -754,6 +754,184 @@ const logPerformanceMetric = async (req, res) => {
     }
 };
 
+// @desc    Auto clock-in attendance upon login
+// @route   POST /api/employees/attendance/auto-clock-in
+// @access  Private
+const autoClockIn = async (req, res) => {
+    try {
+        const employee = await Employee.findOne({ user: req.user._id });
+        if (!employee) {
+            return res.status(200).json({
+                success: true,
+                message: "User is not registered in the employee directory. Auto clock-in skipped."
+            });
+        }
+        
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        
+        let hours = now.getHours();
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const clockInTimeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+
+        let attendanceRecord = await EmployeeAttendance.findOne({
+            employeeId: employee._id.toString(),
+            date: localDateStr
+        });
+
+        if (!attendanceRecord) {
+            attendanceRecord = await EmployeeAttendance.create({
+                employeeId: employee._id.toString(),
+                date: localDateStr,
+                clockIn: clockInTimeStr,
+                clockOut: "",
+                status: "Present"
+            });
+            
+            employee.workingStatus = "Clocked In";
+            
+            const dateObj = new Date(localDateStr);
+            const attendanceExistsInEmployee = employee.attendance.some(a => {
+                if (!a.date) return false;
+                try {
+                    const d = a.date instanceof Date ? a.date : new Date(a.date);
+                    return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === localDateStr;
+                } catch (e) {
+                    return false;
+                }
+            });
+            if (!attendanceExistsInEmployee) {
+                employee.attendance.push({
+                    date: dateObj,
+                    status: "Present"
+                });
+            }
+            await employee.save();
+        } else {
+            if (employee.workingStatus !== "Clocked In" && !attendanceRecord.clockOut) {
+                employee.workingStatus = "Clocked In";
+                await employee.save();
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Auto clock-in successful",
+            attendance: attendanceRecord
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            try {
+                const employee = await Employee.findOne({ user: req.user._id });
+                if (employee) {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const localDateStr = `${year}-${month}-${day}`;
+                    const existingRecord = await EmployeeAttendance.findOne({
+                        employeeId: employee._id.toString(),
+                        date: localDateStr
+                    });
+                    if (existingRecord) {
+                        return res.status(200).json({
+                            success: true,
+                            message: "Auto clock-in successful (resolved parallel request)",
+                            attendance: existingRecord
+                        });
+                    }
+                }
+            } catch (findErr) {
+                console.error("Error retrieving existing record on duplicate key:", findErr.message);
+            }
+        }
+        return res.status(500).json({
+            success: false,
+            message: "Auto clock-in failed.",
+            error: error.message
+        });
+    }
+};
+
+// @desc    Auto clock-out attendance upon logout
+// @route   POST /api/employees/attendance/auto-clock-out
+// @access  Private
+const autoClockOut = async (req, res) => {
+    try {
+        const employee = await Employee.findOne({ user: req.user._id });
+        if (!employee) {
+            return res.status(200).json({
+                success: true,
+                message: "User is not registered in the employee directory. Auto clock-out skipped."
+            });
+        }
+        
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        
+        let hours = now.getHours();
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const clockOutTimeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+
+        let attendanceRecord = await EmployeeAttendance.findOne({
+            employeeId: employee._id.toString(),
+            date: localDateStr
+        });
+
+        if (attendanceRecord) {
+            attendanceRecord.clockOut = clockOutTimeStr;
+            await attendanceRecord.save();
+            
+            employee.workingStatus = "Off Duty";
+            await employee.save();
+        } else {
+            const latestOpenRecord = await EmployeeAttendance.findOne({
+                employeeId: employee._id.toString(),
+                clockOut: ""
+            }).sort({ createdAt: -1 });
+
+            if (latestOpenRecord) {
+                latestOpenRecord.clockOut = clockOutTimeStr;
+                await latestOpenRecord.save();
+            } else {
+                await EmployeeAttendance.create({
+                    employeeId: employee._id.toString(),
+                    date: localDateStr,
+                    clockIn: "",
+                    clockOut: clockOutTimeStr,
+                    status: "Present"
+                });
+            }
+            
+            employee.workingStatus = "Off Duty";
+            await employee.save();
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Auto clock-out successful"
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: "Auto clock-out failed.",
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getAllEmployees,
     getEmployeeById,
@@ -765,5 +943,7 @@ module.exports = {
     getAttendance,
     logAttendance,
     getPerformanceMetrics,
-    logPerformanceMetric
+    logPerformanceMetric,
+    autoClockIn,
+    autoClockOut
 };

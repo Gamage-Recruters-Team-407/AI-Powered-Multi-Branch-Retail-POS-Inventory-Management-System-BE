@@ -28,9 +28,9 @@ if (!redisUri) {
       try {
         if (type === 'EMAIL') {
           const success = await sendEmail(recipient, content.subject, content.text);
-          if (success) {
-            console.log(`[Worker] Email successfully sent to ${recipient}`);
-          }
+          // if (success) {
+          //   console.log(`[Worker] Email successfully sent to ${recipient}`);
+          // }
         } else if (type === 'SMS') {
           await smsSender.sendSMS(recipient, content.text);
           console.log(`[Worker] SMS successfully sent to ${recipient}`);

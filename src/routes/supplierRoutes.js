@@ -23,6 +23,7 @@ router.get("/:id/performance", requireMongoConnection, controller.getPerformance
 
 // Procurement and Transactions
 router.post("/:id/transactions", requireMongoConnection, protect, authorize("SUPER_ADMIN", "ADMIN", "MANAGER", "admin", "manager"), controller.addTransaction);
+router.patch("/:id/transactions/:txnId", requireMongoConnection, protect, authorize("SUPER_ADMIN", "ADMIN", "MANAGER", "admin", "manager"), controller.updateTransactionStatus);
 router.get("/:id/procurement", requireMongoConnection, controller.getProcurementHistory);
 
 // Contract Management

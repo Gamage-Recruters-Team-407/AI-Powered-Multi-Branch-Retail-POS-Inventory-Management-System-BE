@@ -348,3 +348,24 @@ test('PUT /api/suppliers/:id/contract returns 503 status before MongoDB connects
     server.close();
   }
 });
+
+test('PATCH /api/suppliers/:id/transactions/:txnId returns 503 status before MongoDB connects', async () => {
+  const server = app.listen(0);
+  const dummyId = new mongoose.Types.ObjectId().toString();
+  const dummyTxnId = 'TXN-999';
+
+  try {
+    const response = await request(server, `/api/suppliers/${dummyId}/transactions/${dummyTxnId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Delivered' })
+    });
+
+    assert.equal(response.status, 503);
+    assert.equal(response.body.success, false);
+    assert.match(response.body.message, /MongoDB is not connected/);
+  } finally {
+    server.close();
+  }
+});
+

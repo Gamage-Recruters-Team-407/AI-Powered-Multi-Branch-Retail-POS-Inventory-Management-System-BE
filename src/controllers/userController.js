@@ -126,5 +126,24 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// @desc    Get all managers for dropdowns
+const getManagers = async (req, res) => {
+  try {
+    const managers = await User.find({
+      role: { $in: ["MANAGER", "manager"] }
+    }).select("firstName lastName name");
 
-module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser };
+    res.status(200).json({
+      success: true,
+      data: managers,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser , getManagers};

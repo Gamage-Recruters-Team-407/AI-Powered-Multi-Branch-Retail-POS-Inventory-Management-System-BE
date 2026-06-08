@@ -9,7 +9,7 @@ const {
   getEmailLogs
 } = require('../controllers/NotificationController');
 
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 router.use(protect);
 // Notification endpoints
@@ -22,6 +22,6 @@ router.get('/preferences', getPreferences);
 router.put('/preferences', updatePreferences);
 
 // Email Logs endpoint
-router.get('/emails', getEmailLogs);
+router.get('/emails', authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'), getEmailLogs);
 
 module.exports = router;

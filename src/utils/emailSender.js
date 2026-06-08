@@ -35,7 +35,7 @@ const sendEmail = async (to, subject, text, html = '') => {
       text,
       html: html || text
     });
-    console.log(`[Email Module] Email sent: ${info.messageId}`);
+    // console.log(`[Email Module] Email sent: ${info.messageId}`);
     
     await EmailLog.create({
       recipient: to,
