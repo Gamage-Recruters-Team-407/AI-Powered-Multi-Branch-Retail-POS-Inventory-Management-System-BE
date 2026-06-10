@@ -277,9 +277,10 @@ class AnalyticsService {
    * Branch Performance Comparison
    * GET /api/analytics/branch-performance
    */
-  async getBranchPerformance({ fromDate, toDate }) {
+  async getBranchPerformance({ fromDate, toDate, branchId }) {
     const dateMatch = this.buildDateMatch(fromDate, toDate);
-    const match = { ...dateMatch, status: 'COMPLETED' };
+    const branchMatch = this.buildBranchMatch(branchId);
+    const match = { ...dateMatch, ...branchMatch, status: 'COMPLETED' };
 
     const branchStats = await Sale.aggregate([
       { $match: match },
@@ -354,13 +355,14 @@ class AnalyticsService {
    * Branch Rankings
    * GET /api/analytics/branch-rankings
    */
-  async getBranchRankings({ fromDate, toDate, metric = 'revenue' }) {
+  async getBranchRankings({ fromDate, toDate, branchId, metric = 'revenue' }) {
     const dateMatch = this.buildDateMatch(fromDate, toDate);
-    const match = { ...dateMatch, status: 'COMPLETED' };
+    const branchMatch = this.buildBranchMatch(branchId);
+    const match = { ...dateMatch, ...branchMatch, status: 'COMPLETED' };
 
+    // 'growth' is not computed in the aggregation — fall back to revenue sort
     const sortField = metric === 'transactions' ? 'transactionCount'
       : metric === 'avgOrderValue' ? 'avgOrderValue'
-      : metric === 'growth' ? 'growthRate'
       : 'revenue';
 
     const branchAgg = await Sale.aggregate([
@@ -936,7 +938,11 @@ class AnalyticsService {
     const branchMatch = this.buildBranchMatch(branchId);
     const match = { ...dateMatch, ...branchMatch, status: 'COMPLETED' };
 
-    const [salesKPI, productStats, branchStats, inventoryStats, customerCount, returnStats] = await Promise.all([
+    // Build a date-aware match for Returns so refundRate is accurate
+    const returnMatch = { status: 'Refunded' };
+    if (dateMatch.createdAt) returnMatch.createdAt = dateMatch.createdAt;
+
+    const [salesKPI, productStats, branchStats, inventoryStats, customerCount, returnStats, costAgg] = await Promise.all([
       Sale.aggregate([
         { $match: match },
         {
@@ -957,17 +963,46 @@ class AnalyticsService {
       ]),
       Customer.countDocuments({ status: 'ACTIVE' }),
       Return.aggregate([
-        { $match: { status: 'Refunded' } },
+        { $match: returnMatch },
         { $group: { _id: null, totalReturns: { $sum: 1 }, totalRefunded: { $sum: '$amount' } } },
+      ]),
+      // Actual cost from product cost prices (same approach as getProfitTrends)
+      Sale.aggregate([
+        { $match: match },
+        { $unwind: '$items' },
+        {
+          $lookup: {
+            from: 'products',
+            localField: 'items.product',
+            foreignField: '_id',
+            as: 'productInfo',
+          },
+        },
+        { $unwind: { path: '$productInfo', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: null,
+            totalCost: {
+              $sum: {
+                $multiply: [
+                  '$items.quantity',
+                  { $ifNull: ['$productInfo.costPrice', { $multiply: ['$items.unitPrice', 0.7] }] },
+                ],
+              },
+            },
+          },
+        },
       ]),
     ]);
 
     const s = salesKPI[0] || {};
     const inv = inventoryStats[0] || {};
     const ret = returnStats[0] || {};
+    const costData = costAgg[0] || {};
 
     const totalRevenue = s.totalRevenue || 0;
-    const totalCost = totalRevenue * 0.65;
+    // Use real cost from product records; fall back to 65% estimate only if no cost data
+    const totalCost = costData.totalCost != null ? costData.totalCost : totalRevenue * 0.65;
     const netProfit = totalRevenue - totalCost - (s.totalDiscount || 0);
 
     return {
@@ -1055,13 +1090,24 @@ class AnalyticsService {
     const curr = currentData[0] || { revenue: 0, count: 0, avgValue: 0 };
 
     // Previous period (same duration before fromDate)
-    let prevMatch = { status: 'COMPLETED' };
+    // When no fromDate is given, default to last 30 days so the comparison
+    // is always against a meaningful prior period instead of all-time history.
+    let prevMatch = { ...branchMatch, status: 'COMPLETED' };
     if (fromDate) {
       const from = new Date(fromDate);
-      const to = new Date(toDate || new Date());
+      const to = toDate ? new Date(toDate) : new Date();
+      if (toDate) to.setHours(23, 59, 59, 999);
       const duration = to.getTime() - from.getTime();
       const prevFrom = new Date(from.getTime() - duration);
       prevMatch.createdAt = { $gte: prevFrom, $lt: from };
+    } else {
+      // Default: compare last 30 days vs the 30 days before that
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now);
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      const sixtyDaysAgo = new Date(now);
+      sixtyDaysAgo.setDate(now.getDate() - 60);
+      prevMatch.createdAt = { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo };
     }
 
     const prevData = await Sale.aggregate([

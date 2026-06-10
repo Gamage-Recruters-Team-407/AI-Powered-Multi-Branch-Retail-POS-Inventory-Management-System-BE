@@ -52,8 +52,8 @@ class AnalyticsController {
    */
   async getBranchPerformance(req, res) {
     try {
-      const { fromDate, toDate } = req.query;
-      const data = await AnalyticsService.getBranchPerformance({ fromDate, toDate });
+      const { fromDate, toDate, branchId } = req.query;
+      const data = await AnalyticsService.getBranchPerformance({ fromDate, toDate, branchId });
       res.status(200).json({ success: true, message: 'Branch performance retrieved successfully', data });
     } catch (error) {
       console.error('Branch performance error:', error);
@@ -67,8 +67,8 @@ class AnalyticsController {
    */
   async getBranchRankings(req, res) {
     try {
-      const { fromDate, toDate, metric } = req.query;
-      const data = await AnalyticsService.getBranchRankings({ fromDate, toDate, metric });
+      const { fromDate, toDate, branchId, metric } = req.query;
+      const data = await AnalyticsService.getBranchRankings({ fromDate, toDate, branchId, metric });
       res.status(200).json({ success: true, message: 'Branch rankings retrieved successfully', data });
     } catch (error) {
       console.error('Branch rankings error:', error);
