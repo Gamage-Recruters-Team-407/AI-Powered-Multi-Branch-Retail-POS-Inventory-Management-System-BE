@@ -260,7 +260,13 @@ const resolveSecurityEvent = async (req, res) => {
     const { notes } = req.body;
     const event = await SecurityEvent.findByIdAndUpdate(
       req.params.id,
-
+      {
+        resolved: true,
+        resolvedAt: new Date(),
+        resolvedBy: req.user._id,
+        resolutionNotes: notes,
+      },
+      { new: true }
     );
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
     
@@ -277,6 +283,7 @@ const resolveSecurityEvent = async (req, res) => {
   }
 };
 
+const detectSuspiciousActivity = async (req, res) => {
   try {
     await initializeSecurityEvents();
     const flags = await SecurityService.detectSuspiciousActivity();
