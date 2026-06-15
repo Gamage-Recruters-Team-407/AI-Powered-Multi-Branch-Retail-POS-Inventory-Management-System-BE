@@ -151,7 +151,7 @@ const getSaleById = async (req, res) => {
   }
 };
 
-// 4. Void Sale
+// 4.  Sale
 const voidSale = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id);

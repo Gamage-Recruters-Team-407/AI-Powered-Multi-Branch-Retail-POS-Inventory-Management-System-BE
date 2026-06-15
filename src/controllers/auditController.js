@@ -5,7 +5,15 @@ const SecurityEvent = require("../models/SecurityEvent");
 const AuditService = require("../services/auditService");
 const SecurityService = require("../services/securityService");
 const PDFDocument = require('pdfkit');
-const ExcelJS = require('exceljs');
+
+const getExcelJS = () => {
+  try {
+    return require("exceljs");
+  } catch (error) {
+    error.message = 'Missing optional dependency "exceljs". Install it to export Excel audit reports.';
+    throw error;
+  }
+};
 
 // ─── Helper: Initialize Security Events ─────────────────────────────────────
 const initializeSecurityEvents = async () => {
@@ -260,7 +268,13 @@ const resolveSecurityEvent = async (req, res) => {
     const { notes } = req.body;
     const event = await SecurityEvent.findByIdAndUpdate(
       req.params.id,
-
+      {
+        resolved: true,
+        resolvedAt: new Date(),
+        resolvedBy: req.user._id,
+        resolutionNotes: notes,
+      },
+      { new: true }
     );
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
     
@@ -277,21 +291,22 @@ const resolveSecurityEvent = async (req, res) => {
   }
 };
 
+const detectSuspiciousActivity = async (req, res) => {
   try {
     await initializeSecurityEvents();
     const flags = await SecurityService.detectSuspiciousActivity();
     const events = await SecurityEvent.find()
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate('userId', 'name email')
-      .populate('resolvedBy', 'name email')
+      .populate("userId", "name email")
+      .populate("resolvedBy", "name email")
       .lean();
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       data: events,
-      flags: flags,
-      count: events.length 
+      flags,
+      count: events.length,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -461,6 +476,7 @@ const generatePDFReport = async (data, res) => {
 
 const generateExcelReport = async (data, res) => {
   try {
+    const ExcelJS = getExcelJS();
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Retail POS System';
     workbook.created = new Date();
