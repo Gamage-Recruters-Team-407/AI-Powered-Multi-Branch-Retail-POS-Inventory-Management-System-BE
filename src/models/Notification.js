@@ -16,6 +16,22 @@ const notificationSchema = new mongoose.Schema(
         enum: ["INFO", "WARNING", "ERROR", "SUCCESS"]
     },
 
+    // H1 Fix: Fields that NotificationService.js writes but were previously missing
+    category: {
+        type: String,
+        enum: ["GENERAL", "INVENTORY", "SYSTEM", "PROMOTION"],
+        default: "GENERAL"
+    },
+
+    channels: [{
+        type: String,
+        enum: ["in-app", "email", "sms"]
+    }],
+
+    link: {
+        type: String
+    },
+
     isRead: {
         type: Boolean,
         default: false
@@ -23,5 +39,9 @@ const notificationSchema = new mongoose.Schema(
 },
 { timestamps: true }
 );
+
+// M5 Fix: Database indexes for frequently queried patterns
+notificationSchema.index({ user: 1, createdAt: -1 });
+notificationSchema.index({ user: 1, isRead: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);
