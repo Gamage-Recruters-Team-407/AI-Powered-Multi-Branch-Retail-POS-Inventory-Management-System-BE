@@ -41,7 +41,7 @@ router.post(
 router.get(
   "/",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER", "CASHIER"),
   getAllBranches
 );
 
