@@ -19,7 +19,7 @@ const notificationSchema = new mongoose.Schema(
     // H1 Fix: Fields that NotificationService.js writes but were previously missing
     category: {
         type: String,
-        enum: ["GENERAL", "INVENTORY", "SYSTEM", "PROMOTION"],
+        enum: ["GENERAL", "INVENTORY", "SYSTEM", "PROMOTION", "CUSTOMER"],
         default: "GENERAL"
     },
 
