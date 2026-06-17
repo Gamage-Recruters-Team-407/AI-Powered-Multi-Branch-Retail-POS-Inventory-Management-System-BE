@@ -1,24 +1,29 @@
-const mongoose = require("mongoose");
+const mongoose=require("mongoose");
 
-const forecastSchema = new mongoose.Schema(
-{
-    product: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product"
+const forecastSchema=new mongoose.Schema(
+    {
+        product:{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:"Product"
+        },
+        branch:{
+            type:mongoose.Schema.Types.ObjectId,
+            ref:"Branch"
+        },
+        forecastDate:Date,
+
+        predictedDemand:Number,
+
+        confidenceScore:Number,
+
+        forecastPeriod:{
+            type:String,
+            enum:["DAILY","WEEKLY","MONTHLY"]
+        },
+        aiInsight:String
+
     },
-
-    branch: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Branch"
-    },
-
-    predictedDemand: Number,
-
-    forecastPeriod: String,
-
-    confidenceScore: Number
-},
-{ timestamps: true }
+    {timestamps:true}
 );
 
-module.exports = mongoose.model("Forecast", forecastSchema);
+module.exports=mongoose.model("Forecast",forecastSchema)
