@@ -56,6 +56,17 @@ const checkLowStockAndNotify = async () => {
         let notificationsCreated = 0;
         let lowStockListText = "Here are the current items that are running low on stock:\n\n";
 
+        // M2 Fix: Batch-fetch all existing unread notifications upfront (eliminates N×M queries)
+        const adminIds = administrators.map(a => a._id);
+        const existingNotifs = await Notification.find({
+            user: { $in: adminIds },
+            isRead: false,
+            type: "WARNING"
+        }).select('user title').lean().exec();
+
+        // Build a Set for O(1) duplicate checking
+        const existingSet = new Set(existingNotifs.map(n => `${n.user.toString()}_${n.title}`));
+
         // 3. Loop through low stock items and notify each administrator
         for (const item of lowStockItems) {
             const productName = item.product ? item.product.name : "Unknown Product";
@@ -69,21 +80,17 @@ const checkLowStockAndNotify = async () => {
             const message = `Product '${productName}' is running low in branch '${branchName}'. Current stock: ${currentQty} units (Reorder Threshold: ${reorderLevel} units). Please prepare a replenishment purchase order.`;
 
             for (const admin of administrators) {
-                // To avoid notification spam, check if an unread warning notification already exists
-                const existingNotification = await Notification.findOne({
-                    user: admin._id,
-                    title: title,
-                    isRead: false
-                }).exec();
-
-                if (!existingNotification) {
+                const key = `${admin._id.toString()}_${title}`;
+                if (!existingSet.has(key)) {
                     await Notification.create({
                         user: admin._id,
                         title: title,
                         message: message,
                         type: "WARNING",
+                        category: "INVENTORY",
                         isRead: false
                     });
+                    existingSet.add(key); // Prevent duplicates within this run
                     notificationsCreated++;
                 }
             }

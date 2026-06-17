@@ -15,13 +15,35 @@ const createSale = async (req, res) => {
     let subtotal = 0;
 
     for (const item of items) {
-      const product = await Product.findById(item.productId);
+      // const product = await Product.findById(item.productId);
+      let product;
+      try {
+      product = await Product.findById(item.productId);
+      } catch {
+         product = null;
+        }
+
       if (!product) {
-        return res.status(404).json({ success: false, message: `Product ${item.productId} not found` });
+        // Use data from cart item directly (demo mode)
+        enrichedItems.push({
+          product: item.productId,
+          name: item.name || "Product",
+          barcode: item.barcode,
+          quantity: item.quantity,
+          unitPrice: item.price || 0,
+          discount: item.discount || 0,
+          lineTotal: parseFloat(((item.price || 0) * item.quantity).toFixed(2)),
+        });
+        subtotal += parseFloat(((item.price || 0) * item.quantity).toFixed(2));
+        continue;
       }
-      if (!product.isActive) {
-        return res.status(400).json({ success: false, message: `Product "${product.name}" is inactive` });
-      }
+      ///////////////
+      // if (!product) {
+      //   return res.status(404).json({ success: false, message: `Product ${item.productId} not found` });
+      // }
+      // if (!product.isActive) {
+      //   return res.status(400).json({ success: false, message: `Product "${product.name}" is inactive` });
+      // }
 
       const lineTotal = parseFloat((product.price * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2));
       subtotal += lineTotal;
