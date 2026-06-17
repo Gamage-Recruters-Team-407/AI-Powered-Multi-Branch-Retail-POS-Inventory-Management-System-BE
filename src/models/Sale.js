@@ -1,65 +1,17 @@
-// const mongoose = require("mongoose");
-
-// const saleSchema = new mongoose.Schema(
-// {
-//     invoiceNumber: {
-//         type: String,
-//         unique: true
-//     },
-
-//     customer: {
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: "Customer"
-//     },
-
-//     cashier: {
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: "User"
-//     },
-
-//     branch: {
-//         type: mongoose.Schema.Types.ObjectId,
-//         ref: "Branch"
-//     },
-
-//     items: [
-//         {
-//             product: {
-//                 type: mongoose.Schema.Types.ObjectId,
-//                 ref: "Product"
-//             },
-
-//             quantity: Number,
-
-//             price: Number,
-
-//             discount: Number
-//         }
-//     ],
-
-//     paymentMethod: {
-//         type: String,
-//         enum: ["CASH", "CARD", "ONLINE"]
-//     },
-
-//     totalAmount: Number,
-
-//     taxAmount: Number,
-
-//     finalAmount: Number
-// },
-// { timestamps: true }
-// );
-
-// module.exports = mongoose.model("Sale", saleSchema);
-
 const mongoose = require("mongoose");
 
-const saleItemSchema = new mongoose.Schema({
-  product: {
+// const saleItemSchema = new mongoose.Schema({
+  // product: {
+  //   type: mongoose.Schema.Types.ObjectId,
+  //   ref: "Product",
+  //   required: true,
+  // },
+  const saleItemSchema = new mongoose.Schema({
+    product: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Product",
-    required: true,
+    required: false,
+    default: null,
   },
   name: { type: String, required: true },
   barcode: String,
@@ -88,11 +40,16 @@ const saleSchema = new mongoose.Schema(
       required: true,
     },
 
+    // branch: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Branch",
+    //   required: true,
+    //   default: null,
+    // },
     branch: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Branch",
-      required: true,
-      default: null,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Branch",
+    default: null,
     },
 
     items: [saleItemSchema],
@@ -124,7 +81,20 @@ const saleSchema = new mongoose.Schema(
 );
 
 // Auto-generate invoice number before saving
-saleSchema.pre("save", async function (next) {
+// saleSchema.pre("save", async function (next) {
+//   if (!this.invoiceNumber) {
+//     const today = new Date();
+//     const dateStr =
+//       today.getFullYear().toString() +
+//       String(today.getMonth() + 1).padStart(2, "0") +
+//       String(today.getDate()).padStart(2, "0");
+
+//     const count = await mongoose.model("Sale").countDocuments();
+//     this.invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+//   }
+//   next();
+// });
+saleSchema.pre("save", async function () {
   if (!this.invoiceNumber) {
     const today = new Date();
     const dateStr =
@@ -135,7 +105,6 @@ saleSchema.pre("save", async function (next) {
     const count = await mongoose.model("Sale").countDocuments();
     this.invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, "0")}`;
   }
-  next();
 });
 
 module.exports = mongoose.model("Sale", saleSchema);
