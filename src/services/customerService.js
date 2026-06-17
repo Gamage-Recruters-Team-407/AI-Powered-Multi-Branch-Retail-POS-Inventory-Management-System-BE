@@ -1,5 +1,6 @@
 const Customer = require("../models/Customer");
 const Sale = require("../models/Sale");
+const { sendEmail } = require("../utils/emailSender");
 
 class CustomerService {
 
@@ -38,7 +39,7 @@ class CustomerService {
         return await Customer.findByIdAndUpdate(
             id,
             data,
-            { new: true }
+            { returnDocument: 'after' }
         );
     }
 
@@ -97,7 +98,7 @@ class CustomerService {
                     totalPurchases: amount
                 }
             },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!customer) {
@@ -118,6 +119,30 @@ class CustomerService {
         }
 
         await customer.save();
+
+        // ✉️ Send Automated Loyalty E-Receipt
+        if (customer.email && points > 0) {
+            const subject = "🎁 You Earned Loyalty Points!";
+            const textContent = `Hello ${customer.firstName},\n\nYou just earned ${points} loyalty points on your recent purchase!\nYour total points balance is now ${customer.loyaltyPoints}.\n\nYou are currently a ${customer.customerType} tier member.\n\nThank you for shopping with us!`;
+            
+            const htmlContent = `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+                    <h2 style="color: #3b82f6;">🎁 Loyalty Points Earned!</h2>
+                    <p style="font-size: 16px; color: #1e293b;">Hello <strong>${customer.firstName}</strong>,</p>
+                    <p style="font-size: 16px; color: #1e293b;">You just earned <strong>${points} loyalty points</strong> on your recent purchase!</p>
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <p style="margin: 0; font-size: 16px;"><strong>Total Points Balance:</strong> <span style="color: #2563eb; font-weight: bold; font-size: 18px;">${customer.loyaltyPoints}</span></p>
+                        <p style="margin: 5px 0 0 0; font-size: 14px;"><strong>Current Tier:</strong> <span style="display: inline-block; padding: 4px 10px; background-color: #fef3c7; color: #d97706; border-radius: 20px; font-weight: bold;">${customer.customerType}</span></p>
+                    </div>
+                    <p style="font-size: 14px; color: #64748b;">Thank you for shopping with us! We look forward to seeing you again soon.</p>
+                </div>
+            `;
+            
+            // Dispatch asynchronously so it doesn't block the API response
+            sendEmail(customer.email, subject, textContent, htmlContent).catch(err => {
+                console.error("[Loyalty Email Failed]", err.message);
+            });
+        }
 
         return customer;
     }

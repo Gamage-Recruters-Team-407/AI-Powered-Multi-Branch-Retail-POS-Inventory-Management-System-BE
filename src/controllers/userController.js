@@ -102,7 +102,7 @@ const updateUser = async (req, res) => {
         ...(branch && { branch }),
         ...(isActive !== undefined && { isActive })
       },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password');
 
     res.json({ success: true, data: updatedUser });
@@ -126,13 +126,33 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// @desc    Get all managers for dropdowns
+const getManagers = async (req, res) => {
+  try {
+    const managers = await User.find({
+      role: { $in: ["MANAGER", "manager"] }
+    }).select("firstName lastName name");
+
+    res.status(200).json({
+      success: true,
+      data: managers,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 const searchUsers = async (req, res) => {
   try {
     const q = req.query.q || '';
     const users = await User.find({
       $or: [
-        { name: { $regex: q, $options: 'i' } },
+        { firstName: { $regex: q, $options: 'i' } },
+        { lastName: { $regex: q, $options: 'i' } },
         { email: { $regex: q, $options: 'i' } }
       ]
     }).select('-password');
@@ -142,4 +162,4 @@ const searchUsers = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser, searchUsers };
+module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser, searchUsers, getManagers };

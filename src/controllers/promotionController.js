@@ -152,7 +152,7 @@ exports.updatePromotion = async (req, res, next) => {
 		const promotion = await Promotion.findByIdAndUpdate(
 			id,
 			req.body,
-			{ new: true, runValidators: true }
+			{ returnDocument: 'after', runValidators: true }
 		);
 
 		if (!promotion) {

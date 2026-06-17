@@ -50,7 +50,7 @@ const createWarehouse = async (req, res) => {
 // PUT /api/warehouses/:id
 const updateWarehouse = async (req, res) => {
   try {
-    const warehouse = await Warehouse.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const warehouse = await Warehouse.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
     if (!warehouse) return res.status(404).json({ message: "Warehouse not found" });
     res.json({ success: true, data: warehouse });
   } catch (err) {
@@ -95,7 +95,7 @@ const createZone = async (req, res) => {
 // PUT /api/zones/:zoneId
 const updateZone = async (req, res) => {
   try {
-    const zone = await WarehouseZone.findByIdAndUpdate(req.params.zoneId, req.body, { new: true });
+    const zone = await WarehouseZone.findByIdAndUpdate(req.params.zoneId, req.body, { returnDocument: 'after' });
     if (!zone) return res.status(404).json({ message: "Zone not found" });
     res.json({ success: true, data: zone });
   } catch (err) {

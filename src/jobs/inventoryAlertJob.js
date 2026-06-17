@@ -1,6 +1,8 @@
 const Inventory = require("../models/Inventory");
+const Branch = require('../models/Branch');
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const SystemJob = require("../models/SystemJob");
 
 // Try-catch loading of node-cron to allow standard timer fallbacks in non-configured dev environments
 let cron;
@@ -16,6 +18,16 @@ try {
 const checkLowStockAndNotify = async () => {
     try {
         console.log("[Inventory Cron Job] Running scheduled low stock check...");
+
+        // 0. Time-Stamping Check: Prevent running more than once per day
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const jobRecord = await SystemJob.findOne({ jobName: "InventoryAlert" });
+        if (jobRecord && jobRecord.lastRunTime >= today) {
+            console.log("[Inventory Cron Job] Already ran today. Skipping execution.");
+            return;
+        }
 
         // 1. Find all active inventory records where lowStockAlert is flagged true
         const lowStockItems = await Inventory.find({ lowStockAlert: true })
@@ -42,6 +54,7 @@ const checkLowStockAndNotify = async () => {
         }
 
         let notificationsCreated = 0;
+        let lowStockListText = "Here are the current items that are running low on stock:\n\n";
 
         // 3. Loop through low stock items and notify each administrator
         for (const item of lowStockItems) {
@@ -49,6 +62,8 @@ const checkLowStockAndNotify = async () => {
             const branchName = item.branch ? item.branch.name : "Unknown Branch";
             const reorderLevel = item.product ? item.product.reorderLevel : 0;
             const currentQty = item.quantity;
+
+            lowStockListText += `- ${productName} (${branchName}): ${currentQty} units remaining (Threshold: ${reorderLevel})\n`;
 
             const title = `⚠️ Low Stock Alert: ${productName}`;
             const message = `Product '${productName}' is running low in branch '${branchName}'. Current stock: ${currentQty} units (Reorder Threshold: ${reorderLevel} units). Please prepare a replenishment purchase order.`;
@@ -72,14 +87,29 @@ const checkLowStockAndNotify = async () => {
                     notificationsCreated++;
                 }
             }
+        }
 
-            // Placeholder hook for external Email/SMS notifications
-            // if (process.env.ENABLE_NOTIFICATION_DISPATCH === 'true') {
-            //     await dispatchEmailOrSMS(productName, currentQty, reorderLevel, branchName);
-            // }
+        // Consolidated Email Sending
+        if (notificationsCreated > 0) {
+            const systemEvents = require("../events/eventBus");
+            systemEvents.emit('SEND_ALERT', {
+                target: { roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                category: 'INVENTORY',
+                title: '⚠️ Daily Low Stock Summary Report',
+                message: `Hello,\n\nThe system has detected new items running below their reorder threshold. Please review the following low-stock inventory:\n\n${lowStockListText}\n\nLog in to the POS Dashboard to prepare replenishment purchase orders.`,
+                type: 'WARNING',
+                channels: ['email'] // ONLY EMAIL
+            });
         }
 
         console.log(`[Inventory Cron Job] Done. Registered ${notificationsCreated} new alert notifications across administrative users.`);
+
+        // Update Time-Stamp
+        await SystemJob.findOneAndUpdate(
+            { jobName: "InventoryAlert" },
+            { lastRunTime: new Date(), status: "Success" },
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
     } catch (error) {
         console.error("[Inventory Cron Job Error]:", error);
     }
@@ -90,14 +120,14 @@ const checkLowStockAndNotify = async () => {
  */
 const initInventoryAlertJob = () => {
     if (cron) {
-        // Schedule job to run at the start of every hour (0 * * * *)
-        cron.schedule("0 * * * *", checkLowStockAndNotify);
-        console.log("[Inventory Cron Job] Node-cron service scheduled successfully: Run every hour.");
+        // Schedule job to run at 8:00 AM every day (0 8 * * *)
+        cron.schedule("0 8 * * *", checkLowStockAndNotify);
+        console.log("[Inventory Cron Job] Node-cron service scheduled successfully: Run every day at 8:00 AM.");
     } else {
-        // Fallback to standard Node interval (every 1 hour) if cron package isn't loaded
-        const ONE_HOUR = 60 * 60 * 1000;
-        setInterval(checkLowStockAndNotify, ONE_HOUR);
-        console.log("[Inventory Cron Job] Node-cron missing. Falling back to standard setInterval timer: Run every hour.");
+        // Fallback to standard Node interval (every 24 hours) if cron package isn't loaded
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        setInterval(checkLowStockAndNotify, ONE_DAY);
+        console.log("[Inventory Cron Job] Node-cron missing. Falling back to standard setInterval timer: Run every 24 hours.");
     }
 
     // Run once immediately on startup so administrators don't wait an hour for initial audit alerts

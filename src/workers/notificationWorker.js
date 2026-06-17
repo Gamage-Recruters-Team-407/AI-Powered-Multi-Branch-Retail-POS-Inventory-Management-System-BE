@@ -17,19 +17,20 @@ if (!redisUri) {
   });
 
   connection.on('error', (error) => {
-    console.warn(`⚠️ Redis connection error for NotificationWorker: ${error.message}`);
+    // console.warn(`⚠️ Redis connection error for NotificationWorker: ${error.message}`);
   });
 
   notificationWorker = new Worker(
     'NotificationQueue',
     async (job) => {
       const { type, recipient, content } = job.data;
-      console.log(`[Worker] Processing background job ${job.id} - Type: ${type}`);
 
       try {
         if (type === 'EMAIL') {
-          await sendEmail(recipient, content.subject, content.text);
-          console.log(`[Worker] Email successfully sent to ${recipient}`);
+          const success = await sendEmail(recipient, content.subject, content.text);
+          // if (success) {
+          //   console.log(`[Worker] Email successfully sent to ${recipient}`);
+          // }
         } else if (type === 'SMS') {
           await smsSender.sendSMS(recipient, content.text);
           console.log(`[Worker] SMS successfully sent to ${recipient}`);
@@ -42,13 +43,11 @@ if (!redisUri) {
     { connection }
   );
 
-  notificationWorker.on('completed', (job) => {
-    console.log(`[Worker] Job ${job.id} completed!`);
-  });
-
   notificationWorker.on('failed', (job, err) => {
     console.log(`[Worker] Job ${job.id} failed with error: ${err.message}`);
   });
+
+  notificationWorker.on('error', () => {}); // Sink unhandled Redis reconnect errors
 
   console.log('✅ BullMQ NotificationWorker is listening for jobs...');
 }
