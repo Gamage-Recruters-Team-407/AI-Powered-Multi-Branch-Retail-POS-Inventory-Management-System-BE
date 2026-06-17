@@ -48,11 +48,10 @@ const scheduledReportSchema = new mongoose.Schema(
 );
 
 // Auto-compute cron expression from frequency before saving
-scheduledReportSchema.pre('save', function (next) {
+scheduledReportSchema.pre('save', function () {
     if (this.frequency && !this.cronExpression) {
         this.cronExpression = FREQUENCY_CRON_MAP[this.frequency] || '0 8 * * *';
     }
-    next();
 });
 
 scheduledReportSchema.statics.FREQUENCY_CRON_MAP = FREQUENCY_CRON_MAP;

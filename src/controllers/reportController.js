@@ -481,7 +481,7 @@ exports.updateScheduledReport = async (req, res, next) => {
         const { id } = req.params;
         const updates = req.body;
 
-        const doc = await ScheduledReport.findByIdAndUpdate(id, updates, { new: true });
+        const doc = await ScheduledReport.findByIdAndUpdate(id, updates, { returnDocument: 'after' });
         if (!doc) return res.status(404).json({ success: false, error: 'Schedule not found.' });
 
         // Re-register (will stop old task and start new one if active)

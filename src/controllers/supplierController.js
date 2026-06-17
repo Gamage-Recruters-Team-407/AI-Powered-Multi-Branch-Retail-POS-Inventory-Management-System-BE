@@ -147,6 +147,37 @@ exports.addTransaction = async (req, res, next) => {
     }
 };
 
+// UPDATE TRANSACTION STATUS
+exports.updateTransactionStatus = async (req, res, next) => {
+    try {
+        const { id, txnId } = req.params;
+        const { status } = req.body;
+        const data = await supplierService.updateTransactionStatus(id, txnId, status);
+
+        if (!data) {
+            return res.status(404).json({
+                success: false,
+                message: "Supplier or transaction not found"
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: "Transaction status updated successfully",
+            data: data.supplier || data.po
+        });
+    } catch (err) {
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+        next(err);
+    }
+};
+
+
 // GET PROCUREMENT HISTORY
 exports.getProcurementHistory = async (req, res, next) => {
     try {

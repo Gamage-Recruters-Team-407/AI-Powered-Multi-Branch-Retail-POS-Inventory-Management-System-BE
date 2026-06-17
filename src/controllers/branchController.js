@@ -50,13 +50,21 @@ const getAllBranches = async (req, res) => {
 const getBranchById = async (req, res) => {
   try {
     const branch = await Branch.findById(req.params.id)
-      .populate("manager")
+      .populate("manager", "firstName lastName email");
       
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    res.status(200).json(branch);
+    const branchData = branch.toObject();
+
+    if (branchData.manager) {
+      const m = branchData.manager;
+      branchData.manager.displayName = 
+        `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "N/A";
+    }
+
+    res.status(200).json(branchData);
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -72,7 +80,7 @@ const updateBranch = async (req, res) => {
     const branch = await Branch.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!branch) {
@@ -183,11 +191,18 @@ const getBranchEmployees = async (req, res) => {
       branch: req.params.id,
       role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
     });
-    res.status(200).json(employees);
+
+    const safeEmployees = employees.map(emp => ({
+      _id: emp._id,
+      name: `${emp.firstName || ""} ${emp.lastName || ""}`,
+      email: emp.email,
+      role: emp.role
+    }));
+
+    res.status(200).json(safeEmployees);
+
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -238,7 +253,7 @@ const updateBranchSettings = async (req, res) => {
     const branch = await Branch.findByIdAndUpdate(
       req.params.id,
       { settings: req.body },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!branch) {

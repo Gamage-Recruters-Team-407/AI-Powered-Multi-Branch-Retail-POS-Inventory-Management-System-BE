@@ -4,10 +4,10 @@
  * @param {Server} io - The Socket.io Server instance
  */
 const sockethandler = (io) => {
+    const enableSocketLogs = (process.env.SOCKET_LOGGING || 'true') === 'true';
     io.on("connection", (socket) => {
-        // Log client connections for local debug/monitoring
-        // (will only log to stdout when clients actually connect)
-        console.log(`Socket client connected: ${socket.id}`);
+        // Log client connections for local debug/monitoring when enabled
+        if (enableSocketLogs) console.log(`Socket client connected: ${socket.id}`);
 
         /**
          * Event: joinBranch
@@ -18,7 +18,7 @@ const sockethandler = (io) => {
             if (branchId) {
                 const roomName = `branch_${branchId}`;
                 socket.join(roomName);
-                console.log(`Socket ${socket.id} joined room: ${roomName}`);
+                if (enableSocketLogs) console.log(`Socket ${socket.id} joined room: ${roomName}`);
 
                 socket.emit("joinedBranchRoom", {
                     success: true,
@@ -41,7 +41,7 @@ const sockethandler = (io) => {
             if (branchId) {
                 const roomName = `branch_${branchId}`;
                 socket.leave(roomName);
-                console.log(`Socket ${socket.id} left room: ${roomName}`);
+                if (enableSocketLogs) console.log(`Socket ${socket.id} left room: ${roomName}`);
 
                 socket.emit("leftBranchRoom", {
                     success: true,
@@ -53,7 +53,7 @@ const sockethandler = (io) => {
 
         // Disconnection handler
         socket.on("disconnect", () => {
-            console.log(`Socket client disconnected: ${socket.id}`);
+            if (enableSocketLogs) console.log(`Socket client disconnected: ${socket.id}`);
         });
     });
 };

@@ -13,8 +13,8 @@ const normalizeQuantity = (value) => (typeof value === 'number' && !Number.isNaN
 const getSalesConsumption = async (productId, branchId, days = 30) => {
     const since = new Date(Date.now() - Math.max(days, 1) * DAY_MS);
     const match = {
-        product: mongoose.Types.ObjectId(productId),
-        branch: mongoose.Types.ObjectId(branchId),
+        product: new mongoose.Types.ObjectId(productId),
+        branch: new mongoose.Types.ObjectId(branchId),
         type: 'sale',
         createdAt: { $gte: since }
     };
@@ -66,7 +66,7 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
     const filter = {};
 
     if (branchId && mongoose.Types.ObjectId.isValid(branchId)) {
-        filter.branch = mongoose.Types.ObjectId(branchId);
+        filter.branch = new mongoose.Types.ObjectId(branchId);
     }
 
     const inventories = await Inventory.find(filter)
@@ -82,6 +82,9 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
         const product = inventory.product;
         const branch = inventory.branch;
         const currentStock = normalizeQuantity(inventory.quantity);
+        const supplier = product.supplier && mongoose.Types.ObjectId.isValid(product.supplier)
+            ? await Supplier.findById(product.supplier).lean()
+            : null;
 
         const { totalSold, avgDailySales } = await getSalesConsumption(product._id, branch._id, days);
         const reorderPoint = calculateReorderPoint(product, avgDailySales);
@@ -105,7 +108,7 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
             },
             {
                 upsert: true,
-                new: true,
+                returnDocument: 'after',
                 setDefaultsOnInsert: true
             }
         ).lean();
@@ -117,8 +120,10 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
                 name: product.name,
                 barcode: product.barcode,
                 unit: product.unit,
-                costPrice: normalizeQuantity(product.costPrice)
+                costPrice: normalizeQuantity(product.costPrice),
+                supplierName: supplier?.companyName || null
             },
+            supplierName: supplier?.companyName || null,
             branch: {
                 id: branch._id,
                 name: branch.name || branch.location || 'Branch'
