@@ -6,6 +6,10 @@ import dns.resolver
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from collections import Counter
+import pandas as pd
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+import pickle
 
 app = Flask(__name__)
 CORS(app)
@@ -22,6 +26,75 @@ try:
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
     db = None
+
+# Global in-memory ML models
+ml_models = {
+    'item_similarity_df': None,
+    'user_item_matrix': None,
+    'product_names': {}
+}
+
+def train_model():
+    global ml_models
+    if db is None:
+        print("Cannot train model, no DB connection.")
+        return False
+        
+    try:
+        print("Fetching sales data for ML training...")
+        sales = list(db.sales.find({}, {"customer": 1, "items.product": 1, "items.name": 1, "items.quantity": 1}))
+        
+        if not sales:
+            print("No sales data available to train model.")
+            return False
+            
+        flat_data = []
+        product_names = {}
+        for sale in sales:
+            customer_id = str(sale.get('customer', 'Unknown'))
+            if customer_id == 'Unknown':
+                continue
+            for item in sale.get('items', []):
+                prod_id = str(item.get('product'))
+                qty = item.get('quantity', 1)
+                name = item.get('name', 'Unknown')
+                product_names[prod_id] = name
+                flat_data.append({
+                    'customer_id': customer_id,
+                    'product_id': prod_id,
+                    'quantity': qty
+                })
+                
+        df = pd.DataFrame(flat_data)
+        if df.empty:
+            return False
+            
+        user_item_matrix = df.groupby(['customer_id', 'product_id'])['quantity'].sum().unstack(fill_value=0)
+        item_user_matrix = user_item_matrix.T
+        similarity_matrix = cosine_similarity(item_user_matrix)
+        item_similarity_df = pd.DataFrame(
+            similarity_matrix,
+            index=item_user_matrix.index,
+            columns=item_user_matrix.index
+        )
+        
+        ml_models['item_similarity_df'] = item_similarity_df
+        ml_models['user_item_matrix'] = user_item_matrix
+        ml_models['product_names'] = product_names
+        
+        with open('recommendation_model.pkl', 'wb') as f:
+            pickle.dump(ml_models, f)
+            
+        print("ML model successfully trained and cached in memory.")
+        return True
+    except Exception as e:
+        print(f"Error training ML model: {e}")
+        return False
+
+@app.route('/predict/retrain', methods=['POST'])
+def retrain():
+    success = train_model()
+    return jsonify({"success": success, "message": "Model retrained." if success else "Failed to retrain."})
 
 def apply_limit(data, limit):
     try:
@@ -90,6 +163,31 @@ def low_stock():
 def cross_sell(product_id):
     if db is None: return jsonify([])
     limit = int(request.args.get('limit', 10))
+    
+    item_sim_df = ml_models.get('item_similarity_df')
+    prod_names = ml_models.get('product_names', {})
+    
+    pid_str = str(product_id)
+    if item_sim_df is not None and pid_str in item_sim_df.columns:
+        try:
+            # Get similar items, drop self
+            similar = item_sim_df[pid_str].drop(pid_str, errors='ignore')
+            similar = similar.sort_values(ascending=False).head(limit)
+            
+            if not similar.empty:
+                results = []
+                for pid, score in similar.items():
+                    if score > 0:
+                        results.append({
+                            "productId": pid,
+                            "name": prod_names.get(pid, "Unknown Product"),
+                            "count": round(float(score * 100), 2)
+                        })
+                return jsonify(results)
+        except Exception as e:
+            print(f"ML cross-sell err: {e}")
+
+    # Fallback to MongoDB aggregation
     try:
         pid = ObjectId(product_id)
     except:
@@ -243,6 +341,41 @@ def customer_behavior():
 def personalized(customer_id):
     if db is None: return jsonify([])
     limit = int(request.args.get('limit', 10))
+    
+    item_sim_df = ml_models.get('item_similarity_df')
+    user_item = ml_models.get('user_item_matrix')
+    prod_names = ml_models.get('product_names', {})
+    
+    if item_sim_df is not None and user_item is not None:
+        try:
+            cid = str(customer_id)
+            if cid in user_item.index:
+                user_purchases = user_item.loc[cid]
+                already_bought = user_purchases[user_purchases > 0].index
+                
+                scores = pd.Series(dtype=float)
+                for item_id in already_bought:
+                    sims = item_sim_df[item_id] * user_purchases[item_id]
+                    scores = scores.add(sims, fill_value=0)
+                
+                scores = scores.drop(already_bought, errors='ignore')
+                scores = scores.sort_values(ascending=False).head(limit)
+                
+                if not scores.empty:
+                    results = []
+                    for pid, score in scores.items():
+                        if score > 0:
+                            results.append({
+                                "productId": pid,
+                                "name": prod_names.get(pid, "Unknown Product"),
+                                "score": round(float(score), 2)
+                            })
+                    if len(results) > 0:
+                        return jsonify(results)
+        except Exception as e:
+            print(f"ML personalized err: {e}")
+            
+    # Fallback to the old logic
     try:
         cid = ObjectId(customer_id)
     except:
@@ -325,4 +458,5 @@ def decisions():
     return jsonify(actions)
 
 if __name__ == '__main__':
+    train_model()
     app.run(host='0.0.0.0', port=5001, debug=True)
