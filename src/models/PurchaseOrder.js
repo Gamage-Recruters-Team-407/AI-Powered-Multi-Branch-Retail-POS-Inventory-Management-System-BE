@@ -23,6 +23,9 @@ const purchaseOrderSchema = new mongoose.Schema(
     orderDate: {
       type: Date,
     },
+    expectedDate: {
+      type: Date,
+    },
     items: [
       {
         product: {
@@ -33,6 +36,26 @@ const purchaseOrderSchema = new mongoose.Schema(
         costPrice: Number,
       },
     ],
+    itemCount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    priority: {
+      type: String,
+      enum: ["Low", "Normal", "Medium", "High"],
+      default: "Normal",
+    },
+    category: {
+      type: String,
+      trim: true,
+      default: "Mixed Stock",
+    },
+    owner: {
+      type: String,
+      trim: true,
+      default: "Procurement Team",
+    },
     status: {
       type: String,
       enum: [

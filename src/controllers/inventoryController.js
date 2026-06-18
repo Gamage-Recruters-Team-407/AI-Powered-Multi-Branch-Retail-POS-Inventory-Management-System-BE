@@ -4,6 +4,7 @@ const StockMovement = require("../models/StockMovement");
 const Product = require("../models/Product");
 const inventoryService = require("../services/inventoryService");
 const systemEvents = require("../events/eventBus");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 /**
  * @api {get} /api/inventory Fetch inventory with filtering
@@ -15,6 +16,9 @@ const systemEvents = require("../events/eventBus");
  * @apiSuccess {Array} data List of inventory items
  */
 const getInventory = async (req, res, next) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, count: 0, data: [] });
+    }
     try {
         const { branch, product, lowStock } = req.query;
         const filter = {};
@@ -144,14 +148,13 @@ const updateStock = async (req, res, next) => {
                     message: `Product stock level has fallen below the reorder point.`
                 });
 
-                // ALSO trigger a global system alert so Managers get an Email/SMS
                 systemEvents.emit('SEND_ALERT', {
-                    target: { branchId: result.branchId, role: 'Manager' }, 
+                    target: { branchId: result.branchId, role: 'Manager' },
                     category: 'INVENTORY',
                     type: 'WARNING',
                     title: 'Low Stock Alert',
                     message: `Stock level has fallen below the reorder point. Current quantity: ${result.newQuantity}.`,
-                    channels: ['in-app', 'email', 'sms']
+                    channels: ['in-app', 'email', 'sms'],
                 });
             }
         }
@@ -249,6 +252,9 @@ const getMovementHistory = async (req, res, next) => {
  * @apiSuccess {Array} data Low stock inventory array
  */
 const getLowStockAlerts = async (req, res, next) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, count: 0, data: [] });
+    }
     try {
         const lowStockItems = await Inventory.find({ lowStockAlert: true })
             .populate("product")
@@ -272,6 +278,9 @@ const getLowStockAlerts = async (req, res, next) => {
  * @apiSuccess {Object} data Summary details
  */
 const getInventorySummary = async (req, res, next) => {
+    if (!isMongoConnected()) {
+        return res.status(200).json({ success: true, data: { totalStockValue: 0, totalUniqueItems: 0, totalQuantity: 0, lowStockCount: 0 } });
+    }
     try {
         const stats = await Inventory.aggregate([
             {

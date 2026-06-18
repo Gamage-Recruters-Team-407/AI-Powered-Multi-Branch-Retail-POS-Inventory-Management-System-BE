@@ -1,5 +1,6 @@
 const customerService = require("../services/customerService");
 const systemEvents = require("../events/eventBus");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // CREATE
 exports.createCustomer = async (req, res) => {
@@ -7,14 +8,13 @@ exports.createCustomer = async (req, res) => {
 
         const customer = await customerService.createCustomer(req.body);
 
-        // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Manager' }, 
+            target: { role: 'Manager' },
             category: 'CUSTOMER',
             type: 'INFO',
             title: 'New Customer Registered',
             message: `Customer ${customer.firstName || req.body.firstName} just registered.`,
-            channels: ['in-app']
+            channels: ['in-app'],
         });
 
         return res.status(201).json({
@@ -54,6 +54,9 @@ exports.createCustomer = async (req, res) => {
 
 // GET ALL
 exports.getCustomers = async (req, res) => {
+    if (!isMongoConnected()) {
+        return res.json({ success: true, count: 0, data: [] });
+    }
     try {
         const search = req.query.search || "";
         const data = await customerService.getAllCustomers(search);
@@ -179,14 +182,13 @@ exports.addLoyaltyPoints = async (req, res) => {
                 amount
             );
 
-        // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Manager' }, 
+            target: { role: 'Manager' },
             category: 'CUSTOMER',
             type: 'SUCCESS',
             title: 'Loyalty Points Awarded',
             message: `Customer ${customer.firstName || customerId} received ${amount} loyalty points.`,
-            channels: ['in-app']
+            channels: ['in-app'],
         });
 
         return res.status(200).json({

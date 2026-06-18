@@ -4,7 +4,8 @@ const employeePerformanceSchema = new mongoose.Schema(
   {
     employeeId: {
       type: String, // String to match employee _id
-      required: true
+      required: true,
+      index: true
     },
     punctuality: {
       type: Number, // percentage, e.g., 90
@@ -24,7 +25,8 @@ const employeePerformanceSchema = new mongoose.Schema(
     },
     date: {
       type: String, // format: "YYYY-MM"
-      required: true
+      required: true,
+      index: true
     }
   },
   { timestamps: true }

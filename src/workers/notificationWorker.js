@@ -1,47 +1,55 @@
 const { Worker } = require('bullmq');
 const IORedis = require('ioredis');
-const emailSender = require('../utils/emailSender');
+const { sendEmail } = require('../utils/emailSender');
 const smsSender = require('../utils/smsSender');
 
-const connection = new IORedis(process.env.REDIS_URI, {
+const redisUri = process.env.REDIS_URI;
+let notificationWorker;
+
+if (!redisUri) {
+  console.warn('⚠️ REDIS_URI not configured. Notification worker is disabled.');
+  notificationWorker = {
+    on: () => {},
+  };
+} else {
+  const connection = new IORedis(redisUri, {
     maxRetriesPerRequest: null,
-});
+  });
 
-const notificationWorker = new Worker(
-  'NotificationQueue',
-  async (job) => {
-    const { type, recipient, content } = job.data;
-    
-    console.log(`[Worker] Processing background job ${job.id} - Type: ${type}`);
+  connection.on('error', (error) => {
+    // console.warn(`⚠️ Redis connection error for NotificationWorker: ${error.message}`);
+  });
 
-    try {
+  notificationWorker = new Worker(
+    'NotificationQueue',
+    async (job) => {
+      const { type, recipient, content } = job.data;
+
+      try {
         if (type === 'EMAIL') {
-            await emailSender.sendEmail(
-                recipient,
-                content.subject,
-                content.text
-            );
-            console.log(`[Worker] Email successfully sent to ${recipient}`);
+          const success = await sendEmail(recipient, content.subject, content.text);
+          // if (success) {
+          //   console.log(`[Worker] Email successfully sent to ${recipient}`);
+          // }
         } else if (type === 'SMS') {
-            await smsSender.sendSMS(recipient, content.text);
-            console.log(`[Worker] SMS successfully sent to ${recipient}`);
+          await smsSender.sendSMS(recipient, content.text);
+          console.log(`[Worker] SMS successfully sent to ${recipient}`);
         }
-    } catch (error) {
+      } catch (error) {
         console.error(`[Worker] Failed to process job ${job.id}:`, error);
-        throw error; // This lets BullMQ know the job failed so it can retry
-    }
-  },
-  { connection }
-);
+        throw error;
+      }
+    },
+    { connection }
+  );
 
-notificationWorker.on('completed', (job) => {
-  console.log(`[Worker] Job ${job.id} completed!`);
-});
+  notificationWorker.on('failed', (job, err) => {
+    console.log(`[Worker] Job ${job.id} failed with error: ${err.message}`);
+  });
 
-notificationWorker.on('failed', (job, err) => {
-  console.log(`[Worker] Job ${job.id} failed with error: ${err.message}`);
-});
+  notificationWorker.on('error', () => {}); // Sink unhandled Redis reconnect errors
 
-console.log('✅ BullMQ NotificationWorker is listening for jobs...');
+  console.log('✅ BullMQ NotificationWorker is listening for jobs...');
+}
 
 module.exports = notificationWorker;

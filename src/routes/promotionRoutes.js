@@ -1,25 +1,24 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const router = express.Router();
-const { 
-	getPromotions, 
-	createPromotion, 
+const {
+	getPromotions,
+	createPromotion,
 	validateCoupon,
 	getPromotionById,
 	updatePromotion,
-	deletePromotion
+	deletePromotion,
 } = require('../controllers/promotionController');
-
-const isMongoConnected = () => mongoose.connection.readyState === 1;
+const { isMongoConnected } = require('../middleware/requireMongoConnection');
 
 const requireMongoConnection = (req, res, next) => {
-  if (!isMongoConnected()) {
-    return res.status(503).json({
-      success: false,
-      message: 'MongoDB is not connected yet. Check MONGO_URI, DB_NAME, and Atlas network access.',
-    });
-  }
-  next();
+	if (!isMongoConnected()) {
+		return res.status(503).json({
+			success: false,
+			message:
+				'MongoDB is not connected. Set MONGO_URI in .env and ensure Atlas/network access.',
+		});
+	}
+	next();
 };
 
 router.get('/', requireMongoConnection, getPromotions);

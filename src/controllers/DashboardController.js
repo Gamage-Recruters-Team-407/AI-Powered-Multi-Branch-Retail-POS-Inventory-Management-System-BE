@@ -1,5 +1,5 @@
 const DashboardService = require('../services/DashboardService');
-const systemEvents = require("../events/eventBus");
+const systemEvents = require('../events/eventBus');
 
 class DashboardController {
   /**
@@ -524,14 +524,13 @@ class DashboardController {
       const stats = await DashboardService.getDashboardStats(options);
 
       if (format === 'json') {
-        // Trigger an audit notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
-            category: 'SYSTEM',
-            type: 'WARNING',
-            title: 'Data Exported',
-            message: `Dashboard metrics were exported as JSON.`,
-            channels: ['in-app']
+          target: { role: 'Admin' },
+          category: 'SYSTEM',
+          type: 'WARNING',
+          title: 'Data Exported',
+          message: 'Dashboard metrics were exported as JSON.',
+          channels: ['in-app'],
         });
 
         res.status(200).json({
@@ -540,14 +539,13 @@ class DashboardController {
           data: stats,
         });
       } else if (format === 'csv') {
-        // Trigger an audit notification
         systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' }, 
-            category: 'SYSTEM',
-            type: 'WARNING',
-            title: 'Data Exported',
-            message: `Dashboard metrics were exported as CSV.`,
-            channels: ['in-app']
+          target: { role: 'Admin' },
+          category: 'SYSTEM',
+          type: 'WARNING',
+          title: 'Data Exported',
+          message: 'Dashboard metrics were exported as CSV.',
+          channels: ['in-app'],
         });
 
         // CSV export logic would go here

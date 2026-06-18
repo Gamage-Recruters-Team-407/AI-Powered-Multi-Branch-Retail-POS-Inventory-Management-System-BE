@@ -1,6 +1,7 @@
 const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
 const systemEvents = require("../events/eventBus.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -44,12 +45,21 @@ const addProduct = async (req, res) => {
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
-            imagePublicId = uploadedImage.public_id;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                    imagePublicId = uploadedImage.public_id;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
         const product = await Product.create({
@@ -69,7 +79,7 @@ const addProduct = async (req, res) => {
         });
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"] },
             category: "INVENTORY",
             type: "INFO",
             title: "New Product Added",
@@ -96,6 +106,10 @@ const addProduct = async (req, res) => {
 // Get All Products
 const getAllProducts = async (req, res) => {
     try {
+        if (!isMongoConnected()) {
+            return res.status(200).json({ success: true, count: 0, products: [] });
+        }
+
         const products = await Product.find()
             .populate("category")
             .populate("supplier")
@@ -181,12 +195,21 @@ const updateProduct = async (req, res) => {
             const base64Image = req.file.buffer.toString("base64");
             const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
 
-            const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                folder: "retail_pos_products"
-            });
-
-            imageUrl = uploadedImage.secure_url;
-            imagePublicId = uploadedImage.public_id;
+            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
+                try {
+                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
+                        folder: "retail_pos_products"
+                    });
+                    imageUrl = uploadedImage.secure_url;
+                    imagePublicId = uploadedImage.public_id;
+                } catch (uploadErr) {
+                    console.error("Cloudinary upload failed, falling back to base64 Data URI:", uploadErr.message);
+                    imageUrl = dataURI;
+                }
+            } else {
+                console.log("Cloudinary credentials not configured. Using base64 Data URI fallback.");
+                imageUrl = dataURI;
+            }
         }
 
         product.name = req.body.name ?? product.name;
@@ -206,7 +229,7 @@ const updateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"] },
             category: "INVENTORY",
             type: "INFO",
             title: "Product Updated",
@@ -246,7 +269,7 @@ const deactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { roles: ['Admin', 'Manager'] }, 
+            target: { roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CASHIER'] }, 
             category: 'INVENTORY',
             type: 'WARNING',
             title: 'Product Deactivated',
@@ -288,7 +311,7 @@ const deleteProduct = async (req, res) => {
         await Product.findByIdAndDelete(req.params.id);
 
         systemEvents.emit("SEND_ALERT", {
-            target: { roles: ["Admin", "Manager"] },
+            target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"] },
             category: "INVENTORY",
             type: "WARNING",
             title: "Product Deleted",
@@ -465,7 +488,7 @@ const reactivateProduct = async (req, res) => {
         const updatedProduct = await product.save();
 
         systemEvents.emit('SEND_ALERT', {
-            target: { roles: ['Admin', 'Manager'] }, 
+            target: { roles: ['Admin', 'Manager', 'Cashier'] }, 
             category: 'INVENTORY',
             type: 'INFO',
             title: 'Product Reactivated',

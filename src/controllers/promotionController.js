@@ -1,9 +1,20 @@
 const mongoose = require('mongoose');
 const Promotion = require('../models/Promotion');
-const systemEvents = require("../events/eventBus");
+const systemEvents = require('../events/eventBus');
+const { isMongoConnected } = require('../middleware/requireMongoConnection');
+
+const dbUnavailable = (res) =>
+	res.status(503).json({
+		success: false,
+		message:
+			'MongoDB is not connected. Set MONGO_URI in .env and ensure Atlas/network access.',
+	});
 
 exports.getPromotions = async (req, res, next) => {
 	try {
+		if (!isMongoConnected()) {
+			return dbUnavailable(res);
+		}
 		const promotions = await Promotion.find();
 		res.json(promotions);
 	} catch (err) {
@@ -13,17 +24,19 @@ exports.getPromotions = async (req, res, next) => {
 
 exports.createPromotion = async (req, res, next) => {
 	try {
+		if (!isMongoConnected()) {
+			return dbUnavailable(res);
+		}
 		const promotion = new Promotion(req.body);
 		await promotion.save();
 
-		// Trigger a notification
 		systemEvents.emit('SEND_ALERT', {
-			target: { role: 'Manager' }, 
+			target: { role: 'Manager' },
 			category: 'SYSTEM',
 			type: 'INFO',
 			title: 'New Promotion Launched',
 			message: `A new promotion "${promotion.title || 'Special Offer'}" has been created!`,
-			channels: ['in-app', 'email']
+			channels: ['in-app', 'email'],
 		});
 
 		res.status(201).json(promotion);
@@ -139,7 +152,7 @@ exports.updatePromotion = async (req, res, next) => {
 		const promotion = await Promotion.findByIdAndUpdate(
 			id,
 			req.body,
-			{ new: true, runValidators: true }
+			{ returnDocument: 'after', runValidators: true }
 		);
 
 		if (!promotion) {
