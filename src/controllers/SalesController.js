@@ -15,13 +15,12 @@ const createSale = async (req, res) => {
     let subtotal = 0;
 
     for (const item of items) {
-      // const product = await Product.findById(item.productId);
       let product;
       try {
-      product = await Product.findById(item.productId);
+        product = await Product.findById(item.productId);
       } catch {
-         product = null;
-        }
+        product = null;
+      }
 
       if (!product) {
         // Use data from cart item directly (demo mode)
@@ -37,13 +36,6 @@ const createSale = async (req, res) => {
         subtotal += parseFloat(((item.price || 0) * item.quantity).toFixed(2));
         continue;
       }
-      ///////////////
-      // if (!product) {
-      //   return res.status(404).json({ success: false, message: `Product ${item.productId} not found` });
-      // }
-      // if (!product.isActive) {
-      //   return res.status(400).json({ success: false, message: `Product "${product.name}" is inactive` });
-      // }
 
       const lineTotal = parseFloat((product.price * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2));
       subtotal += lineTotal;
@@ -88,20 +80,14 @@ const createSale = async (req, res) => {
 
     await sale.save();
 
-    // for (const item of enrichedItems) {
-    //   await Inventory.findOneAndUpdate(
-    //     { product: item.product, branch: req.user.branch },
-    //     { $inc: { quantity: -item.quantity } }
-    //   );
-    // }
     if (req.user.branch) {
-  for (const item of enrichedItems) {
-    await Inventory.findOneAndUpdate(
-      { product: item.product, branch: req.user.branch },
-      { $inc: { quantity: -item.quantity } }
-    );
-  }
-}
+      for (const item of enrichedItems) {
+        await Inventory.findOneAndUpdate(
+          { product: item.product, branch: req.user.branch },
+          { $inc: { quantity: -item.quantity } }
+        );
+      }
+    }
 
     const populatedSale = await Sale.findById(sale._id)
       .populate("customer", "name phone email")
@@ -156,14 +142,21 @@ const getAllSales = async (req, res) => {
   }
 };
 
-// 3. Get single Sale by ID
+// 3. Get single Sale by ID (Updated with Category Deep Populate)
 const getSaleById = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
       .populate("customer", "name phone email")
       .populate("cashier", "name username")
       .populate("branch", "name address phone")
-      .populate("items.product", "name barcode image");
+      .populate({
+        path: "items.product",
+        select: "name barcode image category",
+        populate: {
+          path: "category",
+          select: "name"
+        }
+      });
 
     if (!sale) return res.status(404).json({ success: false, message: "Sale not found" });
 
@@ -173,7 +166,7 @@ const getSaleById = async (req, res) => {
   }
 };
 
-// 4.  Sale
+// 4. Void Sale
 const voidSale = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id);
@@ -257,7 +250,7 @@ const getSalesSummary = async (req, res) => {
   }
 };
 
-// 6. Search by barcode 
+// 6. Search by barcode (Updated to ensure clean populate structure)
 const getProductByBarcode = async (req, res) => {
   try {
     const product = await Product.findOne({
@@ -275,7 +268,6 @@ const getProductByBarcode = async (req, res) => {
   }
 };
 
-// Exporting all functions correctly
 module.exports = {
   createSale,
   getAllSales,
