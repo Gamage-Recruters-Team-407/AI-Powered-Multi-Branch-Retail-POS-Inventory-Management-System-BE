@@ -2,6 +2,7 @@ const Product = require("../models/Product.js");
 const cloudinary = require("../config/cloudinary");
 const systemEvents = require("../events/eventBus.js");
 const { isMongoConnected } = require("../middleware/requireMongoConnection");
+const Category = require("../models/Category.js");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -62,10 +63,26 @@ const addProduct = async (req, res) => {
             }
         }
 
+        let categoryName = "";
+
+        if (category) {
+            const selectedCategory = await Category.findById(category);
+
+            if (!selectedCategory) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid category selected"
+                });
+            }
+
+            categoryName = selectedCategory.name;
+        }
+
         const product = await Product.create({
             name,
             barcode,
             category,
+            categoryName,
             supplier,
             brand,
             description,
@@ -212,9 +229,25 @@ const updateProduct = async (req, res) => {
             }
         }
 
+        let categoryName = product.categoryName;
+
+        if (req.body.category) {
+            const selectedCategory = await Category.findById(req.body.category);
+
+            if (!selectedCategory) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid category selected"
+                });
+            }
+
+            categoryName = selectedCategory.name;
+        }
+
         product.name = req.body.name ?? product.name;
         product.barcode = req.body.barcode ?? product.barcode;
         product.category = req.body.category ?? product.category;
+        product.categoryName = categoryName;
         product.supplier = req.body.supplier ?? product.supplier;
         product.brand = req.body.brand ?? product.brand;
         product.description = req.body.description ?? product.description;

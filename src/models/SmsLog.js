@@ -2,14 +2,13 @@ const mongoose = require("mongoose");
 
 const smsLogSchema = new mongoose.Schema(
   {
-    supplierId: {
+    recipientId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Supplier",
       required: false
     },
-    warehouseId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Warehouse",
+    recipientType: {
+      type: String,
+      enum: ["Supplier", "Warehouse", "Employee", "Customer"],
       required: false
     },
     recipientPhone: {
