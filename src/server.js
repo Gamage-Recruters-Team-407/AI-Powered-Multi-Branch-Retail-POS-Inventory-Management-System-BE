@@ -12,6 +12,7 @@ if (dns.setDefaultResultOrder) {
 
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
 
 const app = require('./app');
 const connectDB = require('./config/db');
@@ -77,9 +78,40 @@ const startBackgroundServices = async (dbConnection) => {
 };
 
 server.listen(PORT, async () => {
+<<<<<<< Updated upstream
     let mlStatus = 'Disconnected';
     let modelStatus = 'Not Loaded';
     const FLASK_API_URL = process.env.FLASK_API_URL || 'http://localhost:5001';
+=======
+  console.log('================================================================');
+  console.log('🚀 POS RETAIL SYSTEM SERVER RUNNING');
+  console.log(`   Running Environment : ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   Listening Port      : ${PORT}`);
+  console.log(`   Healthcheck Route   : http://localhost:${PORT}/api/health`);
+  
+  try {
+    const mlUrl = process.env.FLASK_API_URL || 'http://localhost:5001';
+    const mlResponse = await axios.get(`${mlUrl}/health`, { timeout: 3000 });
+    if (mlResponse.data && mlResponse.data.status === 'healthy') {
+      console.log(`   ML Service          : Connected (${mlUrl})`);
+      if (mlResponse.data.mongodb_status === 'connected') {
+        console.log(`   Data Source         : MongoDB Live Connected`);
+      } else if (mlResponse.data.model_loaded) {
+        console.log(`   Model Status        : Loaded (recommendation_model.pkl)`);
+      } else if (mlResponse.data.model_loaded === false) {
+        console.log(`   Model Status        : Not Loaded (recommendation_model.pkl missing)`);
+      } else {
+        console.log(`   Data Source         : Unknown or Disconnected`);
+      }
+    } else {
+      console.log(`   ML Service          : Unreachable (${mlUrl})`);
+    }
+  } catch (error) {
+    console.log(`   ML Service          : Disconnected (${process.env.FLASK_API_URL || 'http://localhost:5001'})`);
+  }
+  
+  console.log('================================================================');
+>>>>>>> Stashed changes
 
     try {
         const axios = require('axios');
