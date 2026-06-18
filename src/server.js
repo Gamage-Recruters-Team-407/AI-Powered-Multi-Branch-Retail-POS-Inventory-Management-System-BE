@@ -2,6 +2,7 @@ const path = require('path');
 const dns = require('dns');
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
 
 // Load environment variables early with full path resolve
 require('dotenv').config({
@@ -95,6 +96,28 @@ server.listen(PORT, async () => {
   console.log(`   Running Environment : ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Listening Port      : ${PORT}`);
   console.log(`   Healthcheck Route   : http://localhost:${PORT}/api/health`);
+  
+  try {
+    const mlUrl = process.env.FLASK_API_URL || 'http://localhost:5001';
+    const mlResponse = await axios.get(`${mlUrl}/health`, { timeout: 3000 });
+    if (mlResponse.data && mlResponse.data.status === 'healthy') {
+      console.log(`   ML Service          : Connected (${mlUrl})`);
+      if (mlResponse.data.mongodb_status === 'connected') {
+        console.log(`   Data Source         : MongoDB Live Connected`);
+      } else if (mlResponse.data.model_loaded) {
+        console.log(`   Model Status        : Loaded (recommendation_model.pkl)`);
+      } else if (mlResponse.data.model_loaded === false) {
+        console.log(`   Model Status        : Not Loaded (recommendation_model.pkl missing)`);
+      } else {
+        console.log(`   Data Source         : Unknown or Disconnected`);
+      }
+    } else {
+      console.log(`   ML Service          : Unreachable (${mlUrl})`);
+    }
+  } catch (error) {
+    console.log(`   ML Service          : Disconnected (${process.env.FLASK_API_URL || 'http://localhost:5001'})`);
+  }
+  
   console.log('================================================================');
 
   // Establish DB connection first
