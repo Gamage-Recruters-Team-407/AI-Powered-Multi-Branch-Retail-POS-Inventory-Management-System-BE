@@ -114,10 +114,9 @@ const addEmployee = async (req, res) => {
 
         const emailClean = email.trim().toLowerCase();
 
-        // Check for existing employee/user with same email
-        const existingUser = await User.findOne({ email: emailClean });
+        // Check for existing employee with same email
         const existingEmp = await Employee.findOne({ email: emailClean });
-        if (existingUser || existingEmp) {
+        if (existingEmp) {
             return res.status(400).json({
                 success: false,
                 message: "An employee with this email address is already registered."
@@ -208,31 +207,44 @@ const addEmployee = async (req, res) => {
 
         const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
-        // Step 1: Create corresponding User login record
-        const newAuthUser = await User.create({
-            firstName,
-            lastName,
-            name: `${firstName} ${lastName}`.trim(),
-            email: emailClean,
-            password: "tempPassword123", // Default login password
-            phone,
-            role: role ? role.toUpperCase() : "CASHIER",
-            branch: validBranch,
-            isActive: true
-        });
+        // Define the role to use (defaults to input or CASHIER)
+        let employeeRole = role ? role.toUpperCase() : "CASHIER";
+
+        // Step 1: Fetch corresponding User login record or create one if it doesn't exist
+        let authUser = await User.findOne({ email: emailClean });
+        if (!authUser) {
+            authUser = await User.create({
+                firstName,
+                lastName,
+                name: `${firstName} ${lastName}`.trim(),
+                email: emailClean,
+                password: "tempPassword123", // Default login password
+                phone,
+                role: employeeRole,
+                branch: validBranch,
+                isActive: true
+            });
+        } else {
+            // Fix: Prioritize and keep the existing user's role (do not demote them)
+            employeeRole = authUser.role || employeeRole;
+            
+            // Only update branch if provided
+            if (validBranch) authUser.branch = validBranch;
+            await authUser.save();
+        }
 
         // Generate unique employee ID
         const employeeId = `EMP-${Date.now().toString().slice(-6)}`;
 
         // Step 2: Create Employee record linked to User
         const newEmployee = await Employee.create({
-            user: newAuthUser._id,
+            user: authUser._id,
             employeeId,
             firstName,
             lastName,
             email: emailClean,
             phone,
-            role: role ? role.toUpperCase() : "CASHIER",
+            role: employeeRole,
             salary: salary || 40000,
             branch: validBranch,
             joiningDate: hireDate || new Date(),
