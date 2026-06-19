@@ -73,10 +73,6 @@ const startBackgroundServices = async (dbConnection) => {
   }
 
   try {
-    // Seed essential employees if required
-    const seedEmployees = require('./utils/seedEmployees');
-    await seedEmployees();
-    
     // Start standard cron jobs
     initInventoryAlertJob();
 
