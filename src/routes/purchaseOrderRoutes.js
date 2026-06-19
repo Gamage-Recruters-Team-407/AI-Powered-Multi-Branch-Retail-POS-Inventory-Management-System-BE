@@ -38,29 +38,43 @@ const requireMongoConnection = (req, res, next) => {
   next();
 };
 
-const formatOrder = (order) => ({
-  id: order._id,
-  po: order.poNumber,
-  supplier: order.supplierName,
-  branch: toBranchName(order.branch),
-  date: new Date(order.orderDate).toISOString().slice(0, 10),
-  expectedDate: order.expectedDate
-    ? new Date(order.expectedDate).toISOString().slice(0, 10)
-    : new Date(order.orderDate).toISOString().slice(0, 10),
-  amount: `$${order.totalAmount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`,
-  status: toDisplayStatus(order.status),
-  priority: order.priority || 'Normal',
-  category: order.category || 'Mixed Stock',
-  owner: order.owner || 'Procurement Team',
-  items: Number.isFinite(order.itemCount) && order.itemCount > 0
-    ? order.itemCount
-    : Array.isArray(order.items)
-      ? order.items.length
-      : 0,
-});
+const toAmountValue = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const formatOrder = (order) => {
+  const amountValue = toAmountValue(order.totalAmount ?? order.amount);
+
+  return {
+    id: order._id,
+    po: order.poNumber,
+    supplier: order.supplierName,
+    branch: toBranchName(order.branch),
+    date: new Date(order.orderDate).toISOString().slice(0, 10),
+    expectedDate: order.expectedDate
+      ? new Date(order.expectedDate).toISOString().slice(0, 10)
+      : new Date(order.orderDate).toISOString().slice(0, 10),
+    totalAmount: amountValue,
+    amount: `Rs. ${amountValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    status: toDisplayStatus(order.status),
+    priority: order.priority || 'Normal',
+    category: order.category || 'Mixed Stock',
+    owner: order.owner || 'Procurement Team',
+    items: Number.isFinite(order.itemCount) && order.itemCount > 0
+      ? order.itemCount
+      : Array.isArray(order.items)
+        ? order.items.length
+        : 0,
+  };
+};
 
 const parseBranchValue = (branch) => {
   if (!branch) return null;
