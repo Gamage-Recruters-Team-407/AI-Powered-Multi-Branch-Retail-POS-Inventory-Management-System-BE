@@ -46,9 +46,22 @@ const getAllEmployees = async (req, res) => {
     }
     try {
         const employees = await Employee.find();
+
+        const roleOrder = {
+            'admin': 1,
+            'manager': 2,
+            'cashier': 3
+        };
+
+        const sortedEmployees = employees.sort((a, b) => {
+            const roleA = (a.role || '').toLowerCase();
+            const roleB = (b.role || '').toLowerCase();
+            return (roleOrder[roleA] || 99) - (roleOrder[roleB] || 99);
+        });
+
         return res.status(200).json({
             success: true,
-            employees
+            employees: sortedEmployees
         });
     } catch (error) {
         return res.status(500).json({
@@ -771,7 +784,15 @@ const logPerformanceMetric = async (req, res) => {
 // @access  Private
 const autoClockIn = async (req, res) => {
     try {
-        const employee = await Employee.findOne({ user: req.user._id });
+        let employee = await Employee.findOne({ user: req.user._id });
+        if (!employee && req.user.email) {
+            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
+            if (employee) {
+                employee.user = req.user._id;
+                await employee.save();
+                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
+            }
+        }
         if (!employee) {
             return res.status(200).json({
                 success: true,
@@ -876,7 +897,15 @@ const autoClockIn = async (req, res) => {
 // @access  Private
 const autoClockOut = async (req, res) => {
     try {
-        const employee = await Employee.findOne({ user: req.user._id });
+        let employee = await Employee.findOne({ user: req.user._id });
+        if (!employee && req.user.email) {
+            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
+            if (employee) {
+                employee.user = req.user._id;
+                await employee.save();
+                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
+            }
+        }
         if (!employee) {
             return res.status(200).json({
                 success: true,
