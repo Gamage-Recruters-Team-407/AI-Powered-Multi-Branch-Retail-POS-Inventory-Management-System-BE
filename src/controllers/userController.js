@@ -146,4 +146,20 @@ const getManagers = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser , getManagers};
+const searchUsers = async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    const users = await User.find({
+      $or: [
+        { firstName: { $regex: q, $options: 'i' } },
+        { lastName: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } }
+      ]
+    }).select('-password');
+    res.json({ data: users });
+  } catch (err) {
+    res.status(500).json({ message: 'Search failed' });
+  }
+};
+
+module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser, searchUsers, getManagers };
