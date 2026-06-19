@@ -105,7 +105,7 @@ const checkLowStockAndNotify = async () => {
                 title: '⚠️ Daily Low Stock Summary Report',
                 message: `Hello,\n\nThe system has detected new items running below their reorder threshold. Please review the following low-stock inventory:\n\n${lowStockListText}\n\nLog in to the POS Dashboard to prepare replenishment purchase orders.`,
                 type: 'WARNING',
-                channels: ['email'] // ONLY EMAIL
+                channels: ['email', 'in-app']
             });
         }
 
