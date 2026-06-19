@@ -114,7 +114,11 @@ const getAllSales = async (req, res) => {
 
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
@@ -199,20 +203,24 @@ const getSalesSummary = async (req, res) => {
     let startDate;
 
     if (period === "today") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     } else if (period === "week") {
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     } else if (period === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    } else {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     }
+
+    const matchFilter = {
+      status: "COMPLETED",
+      createdAt: { $gte: startDate },
+    };
+    if (req.user.branch) matchFilter.branch = req.user.branch;
 
     const summary = await Sale.aggregate([
       {
-        $match: {
-          branch: req.user.branch,
-          status: "COMPLETED",
-          createdAt: { $gte: startDate },
-        },
+        $match: matchFilter,
       },
       {
         $group: {
