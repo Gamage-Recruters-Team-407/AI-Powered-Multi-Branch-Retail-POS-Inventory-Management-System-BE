@@ -1,4 +1,15 @@
 const mongoose = require("mongoose");
+
+// -- Socket.io helper ----------------------------------------------------------
+const emitTransferEvent = (event, data) => {
+    try {
+        const io = global.io || app?.get?.("io");
+        if (!io) return;
+        io.emit(event, data);
+        if (data.fromBranch) io.to(`branch_${data.fromBranch}`).emit(event, data);
+        if (data.toBranch)   io.to(`branch_${data.toBranch}`).emit(event, data);
+    } catch { /* socket emit fail ????? API affect ??????? */ }
+};
 const StockTransfer = require("../models/StockTransfer");
 const Inventory = require("../models/Inventory");
 const InventoryMovement = require("../models/InventoryMovement");
@@ -22,7 +33,7 @@ const {
 
 const parsePagination = (query) => {
     const page = Math.max(Number(query.page) || 1, 1);
-    const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
+    const limit = Math.min(Math.max(Number(query.limit) || 100, 1), 100);
     return { page, limit, skip: (page - 1) * limit };
 };
 
@@ -327,6 +338,7 @@ const createTransfer = async (req, res) => {
             itemCount: items.length
         });
 
+        emitTransferEvent("transfer:created", { transferId: transfer._id, fromBranch: String(transfer.fromBranch), toBranch: String(transfer.toBranch), status: "PENDING" });
         return res.status(201).json({ success: true, data: transfer });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
@@ -456,6 +468,7 @@ const dispatchTransfer = async (req, res) => {
         await transfer.save({ session });
         await session.commitTransaction();
 
+        emitTransferEvent("transfer:dispatched", { transferId: transfer._id, fromBranch: String(transfer.fromBranch), toBranch: String(transfer.toBranch), status: "IN_TRANSIT" });
         await createAuditLog(req, "DISPATCH_TRANSFER", { transferId: transfer._id });
 
         return res.status(200).json({ success: true, data: transfer });
@@ -511,6 +524,7 @@ const completeTransfer = async (req, res) => {
         await transfer.save({ session });
         await session.commitTransaction();
 
+        emitTransferEvent("transfer:completed", { transferId: transfer._id, fromBranch: String(transfer.fromBranch), toBranch: String(transfer.toBranch), status: "COMPLETED" });
         await createAuditLog(req, "COMPLETE_TRANSFER", { transferId: transfer._id });
 
         return res.status(200).json({ success: true, data: transfer });
@@ -556,6 +570,7 @@ const approveTransfer = async (req, res) => {
 
         await transfer.save();
 
+        emitTransferEvent("transfer:approved", { transferId: transfer._id, fromBranch: String(transfer.fromBranch), toBranch: String(transfer.toBranch), status: "APPROVED" });
         await createAuditLog(req, "APPROVE_TRANSFER", { transferId: transfer._id });
 
         return res.status(200).json({ success: true, data: transfer });
@@ -570,7 +585,9 @@ const cancelTransfer = async (req, res) => {
 
     try {
         const transfer = await StockTransfer.findById(req.params.id).session(session);
-        const { reason } = getRequestBody(req);
+        const { reason, cancelReason } = getRequestBody(req);
+        const cancelReasonFinal = cancelReason || reason || "Transfer cancelled";
+
 
         if (!transfer) {
             await session.abortTransaction();
@@ -608,7 +625,7 @@ const cancelTransfer = async (req, res) => {
 
         transfer.status = "CANCELLED";
         transfer.cancelledAt = new Date();
-        transfer.cancelReason = reason || "Transfer cancelled";
+        transfer.cancelReason = cancelReasonFinal;
         pushActivityLog(transfer, "CANCELLED", transfer.cancelReason, req.user._id);
 
         await transfer.save({ session });
@@ -632,7 +649,9 @@ const cancelTransfer = async (req, res) => {
 const rejectTransfer = async (req, res) => {
     try {
         const transfer = await StockTransfer.findById(req.params.id);
-        const { reason } = getRequestBody(req);
+        const { reason, cancelReason } = getRequestBody(req);
+        const cancelReasonFinal = cancelReason || reason || "Transfer cancelled";
+
 
         if (!transfer) {
             return res.status(404).json({ success: false, message: "Transfer not found." });
@@ -651,6 +670,7 @@ const rejectTransfer = async (req, res) => {
         pushActivityLog(transfer, "REJECTED", transfer.rejectReason, req.user._id);
         await transfer.save();
 
+        emitTransferEvent("transfer:rejected", { transferId: transfer._id, fromBranch: String(transfer.fromBranch), toBranch: String(transfer.toBranch), status: "REJECTED" });
         await createAuditLog(req, "REJECT_TRANSFER", {
             transferId: transfer._id,
             reason: transfer.rejectReason
@@ -1079,3 +1099,13 @@ module.exports = {
     getBranchTransferReports,
     getTransferAnalytics
 };
+
+
+
+
+
+
+
+
+
+

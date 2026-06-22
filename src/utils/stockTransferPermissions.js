@@ -467,13 +467,13 @@ const getConfirmReceiptDenial = (user, transfer, branches = []) => {
 	const perms = getPermissionsForUser(user);
 	const userBranchIds = getUserBranchIds(user, branches);
 
-	if (!perms.isManager) {
-		return 'Only managers can confirm receipt.';
+	if (!perms.isManager && !perms.isAdmin) {
+		return 'Only managers or admins can confirm receipt.';
 	}
 	if (normalizeTransferStatus(transfer.status) !== 'IN_TRANSIT') {
 		return 'Only IN_TRANSIT transfers can be completed.';
 	}
-	if (userBranchIds.length && !isInboundToUserBranch(transfer, userBranchIds, branches)) {
+	if (perms.isManager && userBranchIds.length && !isInboundToUserBranch(transfer, userBranchIds, branches)) {
 		return 'Managers can only confirm receipt for inbound transfers to their branch.';
 	}
 	return null;
