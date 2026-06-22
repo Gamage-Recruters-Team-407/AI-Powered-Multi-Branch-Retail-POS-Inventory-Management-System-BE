@@ -7,6 +7,7 @@ class DashboardController {
    * GET /api/dashboard/stats
    */
   async getDashboardStats(req, res) {
+    
     try {
       const { startDate, endDate, branchId, includeEmployees, includeInventory, includeSales, includeForecast } = req.query;
 
@@ -45,6 +46,8 @@ class DashboardController {
       });
     }
   }
+
+  
 
   /**
    * Get KPI summary cards data

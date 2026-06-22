@@ -46,7 +46,7 @@ const fetchWithFallback = async (endpoint, query, fallbackKey, transformFallback
 		const params = new URLSearchParams(query || {}).toString();
 		const url = `${FLASK_API_URL}${endpoint}${params ? '?' + params : ''}`;
 
-		const response = await axios.get(url, { timeout: 2000 });
+		const response = await axios.get(url, { timeout: 8000 });
 
 		return formatResponse(response.data, 'flask-ml');
 	} catch (error) {
