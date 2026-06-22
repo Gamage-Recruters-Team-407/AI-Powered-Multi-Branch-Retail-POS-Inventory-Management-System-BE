@@ -92,20 +92,20 @@ const processAlert = async (data) => {
 
       // Email Notification (via Background Queue)
       if (channels.includes('email') && prefs.emailEnabled && user.email) {
-        await notificationQueue.add('sendEmailJob', {
+        notificationQueue.add('sendEmailJob', {
             type: 'EMAIL',
             recipient: user.email,
             content: { subject: title, text: message }
-        });
+        }).catch(err => console.error(`[NotificationService] Redis Queue Error (Email): ${err.message}`));
       }
 
       // SMS Notification (via Background Queue)
       if (channels.includes('sms') && prefs.smsEnabled && user.phone) {
-        await notificationQueue.add('sendSmsJob', {
+        notificationQueue.add('sendSmsJob', {
             type: 'SMS',
             recipient: user.phone,
             content: { text: `${title} - ${message}` }
-        });
+        }).catch(err => console.error(`[NotificationService] Redis Queue Error (SMS): ${err.message}`));
       }
     }
 
