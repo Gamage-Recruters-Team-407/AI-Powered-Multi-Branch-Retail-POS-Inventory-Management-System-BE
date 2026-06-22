@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const DashboardController = require('../controllers/DashboardController');
 const { protect } = require('../middleware/authMiddleware');
+const TopProductsController = require('../controllers/topProductsController');
 
 /**
  * Dashboard Routes
@@ -22,6 +23,18 @@ router.get('/trends/sales', protect, (req, res) => DashboardController.getSalesT
 
 // Top products analysis
 router.get('/top-products', protect, (req, res) => DashboardController.getTopProducts(req, res));
+
+router.get(
+  '/top-products/report',
+  protect,
+  (req, res) => TopProductsController.getTopProductsReport(req, res)
+);
+
+router.get(
+  '/top-products-new',
+  protect,
+  (req, res) => TopProductsController.getTopProducts(req, res)
+);
 
 // Payment methods analysis
 router.get('/payment-methods', protect, (req, res) => DashboardController.getPaymentMethods(req, res));
@@ -46,5 +59,7 @@ router.get('/health', protect, (req, res) => DashboardController.getSystemHealth
 
 // Export dashboard data
 router.get('/export', protect, (req, res) => DashboardController.exportDashboardData(req, res));
+
+
 
 module.exports = router;
