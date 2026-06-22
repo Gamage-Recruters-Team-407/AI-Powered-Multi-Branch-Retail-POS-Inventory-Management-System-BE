@@ -198,45 +198,47 @@ const voidSale = async (req, res) => {
 // 5. Sales Summary
 const getSalesSummary = async (req, res) => {
   try {
-    const { period = "today" } = req.query;
+    const { period = "today", startDate: qStart, endDate: qEnd } = req.query;
     const now = new Date();
-    let startDate;
+    let startDate, endDate;
 
-    if (period === "today") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    } else if (period === "week") {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (period === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    if (qStart && qEnd) {
+      // Use provided dates (month selector)
+      startDate = new Date(qStart);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(qEnd);
+      endDate.setHours(23, 59, 59, 999);
     } else {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      // Use period
+      endDate = new Date();
+      if (period === "today") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      } else if (period === "week") {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (period === "month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      } else {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      }
     }
 
     const matchFilter = {
       status: "COMPLETED",
-      createdAt: { $gte: startDate },
+      createdAt: { $gte: startDate, $lte: endDate },
     };
     if (req.user.branch) matchFilter.branch = req.user.branch;
 
     const summary = await Sale.aggregate([
-      {
-        $match: matchFilter,
-      },
+      { $match: matchFilter },
       {
         $group: {
           _id: null,
           totalRevenue: { $sum: "$totalAmount" },
           totalTransactions: { $count: {} },
           avgTransactionValue: { $avg: "$totalAmount" },
-          cashSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0] },
-          },
-          cardSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0] },
-          },
-          qrSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "QR"] }, "$totalAmount", 0] },
-          },
+          cashSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0] } },
+          cardSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0] } },
+          qrSales:  { $sum: { $cond: [{ $eq: ["$paymentMethod", "QR"]  }, "$totalAmount", 0] } },
         },
       },
     ]);
@@ -244,12 +246,8 @@ const getSalesSummary = async (req, res) => {
     res.json({
       success: true,
       data: summary[0] || {
-        totalRevenue: 0,
-        totalTransactions: 0,
-        avgTransactionValue: 0,
-        cashSales: 0,
-        cardSales: 0,
-        qrSales: 0,
+        totalRevenue: 0, totalTransactions: 0, avgTransactionValue: 0,
+        cashSales: 0, cardSales: 0, qrSales: 0,
       },
       period,
     });
