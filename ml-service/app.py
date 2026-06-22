@@ -261,7 +261,7 @@ def analytics():
         ls_count = ls_agg[0]["count"] if ls_agg else 0
         
         insights = [
-            f"Revenue reached ${total_rev:,.2f} across {total_ord} orders.",
+            f"Revenue reached Rs {total_rev:,.2f} across {total_ord} orders.",
             f"{top_prod} is currently your best-selling product.",
             f"There are {ls_count} items running low on stock."
         ]
