@@ -282,6 +282,59 @@ const updateBranchSettings = async (req, res) => {
 };
 
 // ===============================
+// GET ALL BRANCHES WITH PERFORMANCE(I ADD THIS FOR ADMIN DASHBOARD) - BONUS
+// ===============================
+const getAllBranchesWithPerformance = async (req, res) => {
+  try {
+    const branches = await Branch.find().populate("manager", "firstName lastName email");
+
+    const branchesWithStats = await Promise.all(
+      branches.map(async (branch) => {
+        const sales = await Sale.find({ branch: branch._id, status: "COMPLETED" });
+
+        const totalRevenue = sales.reduce(
+          (sum, sale) => sum + (sale.totalAmount || 0),
+          0
+        );
+
+        const inventoryCount = await Inventory.countDocuments({
+          branch: branch._id,
+        });
+
+        const employeeCount = await Employee.countDocuments({
+          branch: branch._id,
+          role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
+        });
+
+        const lowStockCount = await Inventory.countDocuments({
+          branch: branch._id,
+          quantity: { $lte: 10 }, // adjust threshold as needed
+        });
+
+        return {
+          _id: branch._id,
+          name: branch.name,
+          code: branch.code,
+          city: branch.city,
+          isActive: branch.isActive,
+          totalRevenue,
+          totalSales: sales.length,
+          employeeCount,
+          inventoryCount,
+          lowStockCount,
+        };
+      })
+    );
+
+    res.status(200).json(branchesWithStats);
+  } catch (error) {
+    res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
+// ===============================
 // EXPORTS
 // ===============================
 module.exports = {
@@ -295,5 +348,6 @@ module.exports = {
   getBranchSales,
   getBranchEmployees,
   getBranchPerformance,
+  getAllBranchesWithPerformance,
   updateBranchSettings,
 };
