@@ -12,7 +12,20 @@ const systemEvents = require("../events/eventBus");
 const getAllWarehouses = async (req, res) => {
   try {
     const warehouses = await Warehouse.find({ isActive: true }).populate("manager", "name email");
-    res.json({ success: true, data: warehouses });
+
+    // Each warehouse eke zones + usage calculate karanna
+    const warehousesWithUsage = await Promise.all(
+      warehouses.map(async (warehouse) => {
+        const zones = await WarehouseZone.find({ warehouse: warehouse._id, isActive: true });
+        const totalUsed = zones.reduce((sum, z) => sum + (z.currentStock || 0), 0);
+        const usagePercent = warehouse.capacity > 0
+          ? ((totalUsed / warehouse.capacity) * 100).toFixed(1)
+          : "0.0";
+        return { ...warehouse.toObject(), zones, totalUsed, usagePercent };
+      })
+    );
+
+    res.json({ success: true, data: warehousesWithUsage });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
