@@ -352,110 +352,61 @@ const voidSale = async (req, res) => {
 const getSalesSummary = async (req, res) => {
   try {
     const { period = "today", startDate: qStart, endDate: qEnd } = req.query;
-
     const now = new Date();
-    let startDate;
-    let endDate;
+    let start, end;
 
     if (qStart && qEnd) {
-      startDate = new Date(qStart);
-      startDate.setHours(0, 0, 0, 0);
-
-      endDate = new Date(qEnd);
-      endDate.setHours(23, 59, 59, 999);
+      start = new Date(qStart);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(qEnd);
+      end.setHours(23, 59, 59, 999);
     } else {
-      endDate = new Date();
-
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       if (period === "today") {
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          0,
-          0,
-          0,
-          0
-        );
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       } else if (period === "week") {
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       } else if (period === "month") {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
       } else {
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          0,
-          0,
-          0,
-          0
-        );
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       }
     }
 
     const matchFilter = {
       status: "COMPLETED",
-      createdAt: {
-        $gte: startDate,
-        $lte: endDate,
-      },
+      createdAt: { $gte: start, $lte: end },
     };
-
-    if (req.user?.branch) {
-      matchFilter.branch = req.user.branch;
-    }
+    if (req.user.branch) matchFilter.branch = req.user.branch;
 
     const summary = await Sale.aggregate([
-      {
-        $match: matchFilter,
-      },
+      { $match: matchFilter },
       {
         $group: {
           _id: null,
           totalRevenue: { $sum: "$totalAmount" },
-          totalTransactions: { $sum: 1 },
+          totalTransactions: { $count: {} },
           avgTransactionValue: { $avg: "$totalAmount" },
-          cashSales: {
-            $sum: {
-              $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0],
-            },
-          },
-          cardSales: {
-            $sum: {
-              $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0],
-            },
-          },
-          qrSales: {
-            $sum: {
-              $cond: [{ $eq: ["$paymentMethod", "QR"] }, "$totalAmount", 0],
-            },
-          },
+          cashSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0] } },
+          cardSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0] } },
+          qrSales:   { $sum: { $cond: [{ $eq: ["$paymentMethod", "QR"] },   "$totalAmount", 0] } },
         },
       },
     ]);
 
-    return res.json({
+    res.json({
       success: true,
       data: summary[0] || {
-        totalRevenue: 0,
-        totalTransactions: 0,
-        avgTransactionValue: 0,
-        cashSales: 0,
-        cardSales: 0,
-        qrSales: 0,
+        totalRevenue: 0, totalTransactions: 0, avgTransactionValue: 0,
+        cashSales: 0, cardSales: 0, qrSales: 0,
       },
       period,
     });
   } catch (error) {
-    console.error("getSalesSummary error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch sales summary",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+  
 
 // Product by barcode using reorderLevel as stock
 const getProductByBarcode = async (req, res) => {
