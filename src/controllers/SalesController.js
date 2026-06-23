@@ -15,13 +15,12 @@ const createSale = async (req, res) => {
     let subtotal = 0;
 
     for (const item of items) {
-      // const product = await Product.findById(item.productId);
       let product;
       try {
-      product = await Product.findById(item.productId);
+        product = await Product.findById(item.productId);
       } catch {
-         product = null;
-        }
+        product = null;
+      }
 
       if (!product) {
         // Use data from cart item directly (demo mode)
@@ -37,13 +36,6 @@ const createSale = async (req, res) => {
         subtotal += parseFloat(((item.price || 0) * item.quantity).toFixed(2));
         continue;
       }
-      ///////////////
-      // if (!product) {
-      //   return res.status(404).json({ success: false, message: `Product ${item.productId} not found` });
-      // }
-      // if (!product.isActive) {
-      //   return res.status(400).json({ success: false, message: `Product "${product.name}" is inactive` });
-      // }
 
       const lineTotal = parseFloat((product.price * item.quantity * (1 - (item.discount || 0) / 100)).toFixed(2));
       subtotal += lineTotal;
@@ -88,20 +80,14 @@ const createSale = async (req, res) => {
 
     await sale.save();
 
-    // for (const item of enrichedItems) {
-    //   await Inventory.findOneAndUpdate(
-    //     { product: item.product, branch: req.user.branch },
-    //     { $inc: { quantity: -item.quantity } }
-    //   );
-    // }
     if (req.user.branch) {
-  for (const item of enrichedItems) {
-    await Inventory.findOneAndUpdate(
-      { product: item.product, branch: req.user.branch },
-      { $inc: { quantity: -item.quantity } }
-    );
-  }
-}
+      for (const item of enrichedItems) {
+        await Inventory.findOneAndUpdate(
+          { product: item.product, branch: req.user.branch },
+          { $inc: { quantity: -item.quantity } }
+        );
+      }
+    }
 
     const populatedSale = await Sale.findById(sale._id)
       .populate("customer", "name phone email")
@@ -128,7 +114,11 @@ const getAllSales = async (req, res) => {
 
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
@@ -156,14 +146,21 @@ const getAllSales = async (req, res) => {
   }
 };
 
-// 3. Get single Sale by ID
+// 3. Get single Sale by ID (Updated with Category Deep Populate)
 const getSaleById = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
       .populate("customer", "name phone email")
       .populate("cashier", "name username")
       .populate("branch", "name address phone")
-      .populate("items.product", "name barcode image");
+      .populate({
+        path: "items.product",
+        select: "name barcode image category",
+        populate: {
+          path: "category",
+          select: "name"
+        }
+      });
 
     if (!sale) return res.status(404).json({ success: false, message: "Sale not found" });
 
@@ -173,7 +170,7 @@ const getSaleById = async (req, res) => {
   }
 };
 
-// 4.  Sale
+// 4. Void Sale
 const voidSale = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id);
@@ -201,41 +198,47 @@ const voidSale = async (req, res) => {
 // 5. Sales Summary
 const getSalesSummary = async (req, res) => {
   try {
-    const { period = "today" } = req.query;
+    const { period = "today", startDate: qStart, endDate: qEnd } = req.query;
     const now = new Date();
-    let startDate;
+    let startDate, endDate;
 
-    if (period === "today") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    } else if (period === "week") {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (period === "month") {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (qStart && qEnd) {
+      // Use provided dates (month selector)
+      startDate = new Date(qStart);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(qEnd);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Use period
+      endDate = new Date();
+      if (period === "today") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      } else if (period === "week") {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else if (period === "month") {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      } else {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      }
     }
 
+    const matchFilter = {
+      status: "COMPLETED",
+      createdAt: { $gte: startDate, $lte: endDate },
+    };
+    if (req.user.branch) matchFilter.branch = req.user.branch;
+
     const summary = await Sale.aggregate([
-      {
-        $match: {
-          branch: req.user.branch,
-          status: "COMPLETED",
-          createdAt: { $gte: startDate },
-        },
-      },
+      { $match: matchFilter },
       {
         $group: {
           _id: null,
           totalRevenue: { $sum: "$totalAmount" },
           totalTransactions: { $count: {} },
           avgTransactionValue: { $avg: "$totalAmount" },
-          cashSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0] },
-          },
-          cardSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0] },
-          },
-          qrSales: {
-            $sum: { $cond: [{ $eq: ["$paymentMethod", "QR"] }, "$totalAmount", 0] },
-          },
+          cashSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CASH"] }, "$totalAmount", 0] } },
+          cardSales: { $sum: { $cond: [{ $eq: ["$paymentMethod", "CARD"] }, "$totalAmount", 0] } },
+          qrSales:  { $sum: { $cond: [{ $eq: ["$paymentMethod", "QR"]  }, "$totalAmount", 0] } },
         },
       },
     ]);
@@ -243,12 +246,8 @@ const getSalesSummary = async (req, res) => {
     res.json({
       success: true,
       data: summary[0] || {
-        totalRevenue: 0,
-        totalTransactions: 0,
-        avgTransactionValue: 0,
-        cashSales: 0,
-        cardSales: 0,
-        qrSales: 0,
+        totalRevenue: 0, totalTransactions: 0, avgTransactionValue: 0,
+        cashSales: 0, cardSales: 0, qrSales: 0,
       },
       period,
     });
@@ -257,7 +256,7 @@ const getSalesSummary = async (req, res) => {
   }
 };
 
-// 6. Search by barcode 
+// 6. Search by barcode (Updated to ensure clean populate structure)
 const getProductByBarcode = async (req, res) => {
   try {
     const product = await Product.findOne({
@@ -275,7 +274,6 @@ const getProductByBarcode = async (req, res) => {
   }
 };
 
-// Exporting all functions correctly
 module.exports = {
   createSale,
   getAllSales,

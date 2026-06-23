@@ -230,7 +230,21 @@ def analytics():
         })
         
     try:
+        period = request.args.get('period', 'current')
+        
+        # Date filters: current = last 30 days, previous = 30-60 days ago
+        now = datetime.utcnow()
+        if period == 'previous':
+            date_from = now - timedelta(days=60)
+            date_to = now - timedelta(days=30)
+        else:
+            date_from = now - timedelta(days=30)
+            date_to = now
+        
+        date_match = {"createdAt": {"$gte": date_from, "$lte": date_to}}
+        
         sales_pipeline = [
+            {"$match": date_match},
             {"$group": {
                 "_id": None,
                 "totalRevenue": {"$sum": "$totalAmount"},
@@ -243,6 +257,7 @@ def analytics():
         avg_ord = round(total_rev / total_ord, 2) if total_ord > 0 else 0
         
         top_prod_pipeline = [
+            {"$match": date_match},
             {"$unwind": "$items"},
             {"$group": {"_id": "$items.name", "count": {"$sum": "$items.quantity"}}},
             {"$sort": {"count": -1}},
@@ -261,7 +276,7 @@ def analytics():
         ls_count = ls_agg[0]["count"] if ls_agg else 0
         
         insights = [
-            f"Revenue reached Rs {total_rev:,.2f} across {total_ord} orders.",
+            f"Revenue reached Rs {total_rev:,.2f} across {total_ord} orders in the last 30 days.",
             f"{top_prod} is currently your best-selling product.",
             f"There are {ls_count} items running low on stock."
         ]

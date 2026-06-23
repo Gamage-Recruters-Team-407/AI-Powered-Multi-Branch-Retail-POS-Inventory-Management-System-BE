@@ -3,6 +3,8 @@ const cloudinary = require("../config/cloudinary");
 const systemEvents = require("../events/eventBus.js");
 const { isMongoConnected } = require("../middleware/requireMongoConnection");
 const Category = require("../models/Category.js");
+const Branch = require("../models/Branch.js");
+const Inventory = require("../models/Inventory.js");
 
 // Add Product
 const addProduct = async (req, res) => {
@@ -18,7 +20,9 @@ const addProduct = async (req, res) => {
             costPrice,
             reorderLevel,
             unit,
-            isActive
+            isActive,
+            quantity,
+            branch
         } = req.body;
 
         if (!name || !price) {
@@ -94,6 +98,32 @@ const addProduct = async (req, res) => {
             unit,
             isActive
         });
+
+        // Automatically create inventory records for branches using the initial quantity
+        try {
+            const branches = await Branch.find({});
+            if (branches && branches.length > 0) {
+                const initQty = Number(quantity) || 0;
+                const inventoryEntries = branches.map(b => {
+                    let qtyForThisBranch = initQty;
+                    // If a specific target branch was chosen, assign the quantity only to that branch.
+                    // Otherwise, set the quantity to all branches.
+                    if (branch && branch !== "all" && branch !== "") {
+                        qtyForThisBranch = b._id.toString() === branch.toString() ? initQty : 0;
+                    }
+                    return {
+                        product: product._id,
+                        branch: b._id,
+                        quantity: qtyForThisBranch,
+                        reservedStock: 0,
+                        lowStockAlert: qtyForThisBranch <= (Number(reorderLevel) || 0)
+                    };
+                });
+                await Inventory.insertMany(inventoryEntries);
+            }
+        } catch (invErr) {
+            console.error("Error creating initial inventory records for branches:", invErr.message);
+        }
 
         systemEvents.emit("SEND_ALERT", {
             target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"] },
