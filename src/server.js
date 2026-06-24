@@ -79,6 +79,10 @@ const startBackgroundServices = async (dbConnection) => {
     // Start Part 21 Security Scan jobs
     startSecurityJobs();
 
+    // Seed missing inventory records automatically on startup
+    const { seedMissingInventories } = require('./services/inventoryService');
+    await seedMissingInventories();
+
     console.log('✅ All Background Services & Startup Jobs Initialized.');
   } catch (serviceError) {
     console.error('❌ Error starting background services:', serviceError.message);
