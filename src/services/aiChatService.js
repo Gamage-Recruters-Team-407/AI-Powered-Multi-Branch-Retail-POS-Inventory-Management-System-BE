@@ -19,12 +19,14 @@ const processChatMessage = async (message, sessionId, customerId = null, chatTyp
     // 2. Fetch real data from Recommendation Engine (Flask) or execute Action
     if (intentData.intent === 'INVENTORY') {
       try {
-        const suggestions = await decisionService.getPendingSuggestions();
+        const response = await axios.get(`${FLASK_API_URL}/predict/decisions`);
+        const suggestions = Array.isArray(response.data) ? response.data : (response.data.actions || []);
         const lowStockItems = suggestions.filter(s => s.type === 'LOW_STOCK');
         fetchedData = {
           message: "Current low stock items from Decision Assistant",
           items: lowStockItems.map(item => ({
             productName: item.productName,
+            branchName: item.branchName || 'All Branches',
             currentStock: item.currentStock,
             reorderLevel: item.reorderLevel,
             suggestedQuantity: item.suggestedQuantity
@@ -33,6 +35,57 @@ const processChatMessage = async (message, sessionId, customerId = null, chatTyp
       } catch (err) {
         console.error('Failed to fetch decision data:', err.message);
         fetchedData = { error: 'Could not fetch live inventory data.' };
+      }
+    } else if (intentData.intent === 'BRANCH_PERFORMANCE') {
+      try {
+        const Sale = require('../models/Sale');
+        const Branch = require('../models/Branch');
+        
+        const branches = await Branch.find();
+        const branchSales = [];
+        
+        // Determine date filter
+        let dateFilter = {};
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('today')) {
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+          dateFilter = { createdAt: { $gte: startOfDay } };
+        } else if (lowerMsg.includes('week')) {
+          const startOfWeek = new Date();
+          startOfWeek.setDate(startOfWeek.getDate() - 7);
+          dateFilter = { createdAt: { $gte: startOfWeek } };
+        } else if (lowerMsg.includes('month')) {
+          const startOfMonth = new Date();
+          startOfMonth.setDate(1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          dateFilter = { createdAt: { $gte: startOfMonth } };
+        }
+        
+        for (const branch of branches) {
+          const sales = await Sale.aggregate([
+            { $match: { branch: branch._id, status: 'COMPLETED', ...dateFilter } },
+            { $unwind: "$items" },
+            { $group: { _id: null, totalRevenue: { $sum: "$items.lineTotal" }, itemsSold: { $sum: "$items.quantity" } } }
+          ]);
+          
+          branchSales.push({
+            branchName: branch.name,
+            totalRevenue: sales[0] ? sales[0].totalRevenue : 0,
+            itemsSold: sales[0] ? sales[0].itemsSold : 0
+          });
+        }
+        
+        // Sort by revenue descending
+        branchSales.sort((a, b) => b.totalRevenue - a.totalRevenue);
+        
+        fetchedData = {
+          message: "Sales performance comparison across all branches",
+          branches: branchSales
+        };
+      } catch (err) {
+        console.error('Failed to fetch branch performance:', err.message);
+        fetchedData = { error: 'Could not fetch branch performance data.' };
       }
     } else if (intentData.apiEndpoint) {
       try {
@@ -81,9 +134,53 @@ const processChatMessage = async (message, sessionId, customerId = null, chatTyp
       } catch (err) {
         actionResult = { success: false, error: 'Failed to execute action: ' + err.message };
       }
+    } else if (intentData.intent === 'CUSTOMER') {
+      try {
+        const Sale = require('../models/Sale');
+        const topCustomers = await Sale.aggregate([
+          { $match: { customer: { $ne: null }, status: 'COMPLETED' } },
+          { $group: { _id: "$customer", totalSpent: { $sum: "$totalAmount" }, itemsBought: { $sum: 1 } } },
+          { $sort: { totalSpent: -1 } },
+          { $limit: 3 },
+          { $lookup: { from: 'customers', localField: '_id', foreignField: '_id', as: 'customerData' } },
+          { $unwind: "$customerData" }
+        ]);
+        fetchedData = {
+          message: "Top Customers by Total Spent",
+          customers: topCustomers.map(c => ({
+            name: c.customerData.name,
+            totalSpent: c.totalSpent,
+            itemsBought: c.itemsBought
+          }))
+        };
+      } catch (err) {
+        fetchedData = { error: 'Could not fetch top customers.' };
+      }
     }
 
-    // Prepare History if it's the Assistant
+    if (!fetchedData) {
+      try {
+        const Product = require('../models/Product');
+        const Customer = require('../models/Customer');
+        const Branch = require('../models/Branch');
+        const Sale = require('../models/Sale');
+        
+        const totalProducts = await Product.countDocuments();
+        const totalCustomers = await Customer.countDocuments();
+        const totalBranches = await Branch.countDocuments();
+        const totalSales = await Sale.countDocuments();
+        
+        fetchedData = {
+          message: "General System Statistics",
+          totalProductsInSystem: totalProducts,
+          totalCustomersRegistered: totalCustomers,
+          totalBranchesActive: totalBranches,
+          totalSalesTransactions: totalSales
+        };
+      } catch (err) {
+        fetchedData = { message: "General Chat context" };
+      }
+    }
     let historyContext = '';
     if (chatType === 'assistant') {
       const history = await getSessionHistory(sessionId);
@@ -111,9 +208,14 @@ const processChatMessage = async (message, sessionId, customerId = null, chatTyp
       Action Execution Result:
       ${actionResult ? JSON.stringify(actionResult, null, 2) : "No action taken."}
       
-      IMPORTANT: Your response MUST be highly concise and extremely brief (maximum 2-3 short sentences or a very short bulleted list). Do not write long paragraphs or excessive markdown headers. Get straight to the point based on the live data provided above. When mentioning products, ALWAYS use their actual names instead of product IDs.
-      If the data is an error or missing, apologize briefly.
-      If an Action Execution Result is provided, inform the user that their requested action was executed successfully (e.g. "I have created the Purchase Order for you. The PO ID is...").
+      CRITICAL INSTRUCTIONS FOR ACCURACY AND CLARITY:
+      1. You MUST be highly concise, clear, and direct. Use short sentences.
+      2. If presenting multiple items or metrics, use a clean bulleted list for readability.
+      3. Your response MUST be strictly based on the "Live Data from System" or "Action Execution Result" provided above. Do NOT hallucinate, guess, or invent any numbers, names, or metrics.
+      4. If the requested information is not present in the Live Data, explicitly state that you don't have that data right now. Do not attempt to estimate it.
+      5. ALWAYS use actual product names and branch names instead of raw IDs. Format currency with "Rs".
+      6. Do not write long paragraphs, excessive markdown headers, or unnecessary fluff. 
+      7. If an Action Execution Result is provided, inform the user clearly that their requested action was executed successfully.
     `;
 
     // 4. Call Gemini API
