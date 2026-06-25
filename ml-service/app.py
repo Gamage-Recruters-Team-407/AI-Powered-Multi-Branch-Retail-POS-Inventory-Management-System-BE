@@ -42,7 +42,7 @@ def train_model():
         
     try:
         print("Fetching sales data for ML training...")
-        sales = list(db.sales.find({}, {"customer": 1, "items.product": 1, "items.name": 1, "items.quantity": 1}))
+        sales = list(db.sales.find({"status": "COMPLETED"}, {"customer": 1, "items.product": 1, "items.name": 1, "items.quantity": 1}))
         
         if not sales:
             print("No sales data available to train model.")
@@ -121,6 +121,7 @@ def top_products():
     if db is None: return jsonify([])
     limit = int(request.args.get('limit', 10))
     pipeline = [
+        {"$match": {"status": "COMPLETED"}},
         {"$unwind": "$items"},
         {"$group": {"_id": "$items.product", "totalSold": {"$sum": "$items.quantity"}, "name": {"$first": "$items.name"}}},
         {"$sort": {"totalSold": -1}},
@@ -142,9 +143,18 @@ def low_stock():
             "as": "product_details"
         }},
         {"$unwind": "$product_details"},
+        {"$lookup": {
+            "from": "branches",
+            "localField": "branch",
+            "foreignField": "_id",
+            "as": "branch_details"
+        }},
+        {"$unwind": {"path": "$branch_details", "preserveNullAndEmptyArrays": True}},
         {"$project": {
             "productId": {"$toString": "$product"},
+            "branchId": {"$toString": "$branch"},
             "name": "$product_details.name",
+            "branchName": {"$ifNull": ["$branch_details.name", "Main Branch"]},
             "currentStock": "$quantity",
             "reorderLevel": "$product_details.reorderLevel",
             "isLow": {"$lte": ["$quantity", "$product_details.reorderLevel"]}
@@ -194,7 +204,7 @@ def cross_sell(product_id):
         pid = product_id
 
     pipeline = [
-        {"$match": {"items.product": pid}},
+        {"$match": {"items.product": pid, "status": "COMPLETED"}},
         {"$unwind": "$items"},
         {"$match": {"items.product": {"$ne": pid}}},
         {"$group": {"_id": "$items.product", "count": {"$sum": 1}, "name": {"$first": "$items.name"}}},
@@ -211,7 +221,7 @@ def trending():
     limit = int(request.args.get('limit', 10))
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
     pipeline = [
-        {"$match": {"createdAt": {"$gte": seven_days_ago}}},
+        {"$match": {"createdAt": {"$gte": seven_days_ago}, "status": "COMPLETED"}},
         {"$unwind": "$items"},
         {"$group": {"_id": "$items.product", "totalSold": {"$sum": "$items.quantity"}, "name": {"$first": "$items.name"}}},
         {"$sort": {"totalSold": -1}},
@@ -241,7 +251,7 @@ def analytics():
             date_from = now - timedelta(days=30)
             date_to = now
         
-        date_match = {"createdAt": {"$gte": date_from, "$lte": date_to}}
+        date_match = {"createdAt": {"$gte": date_from, "$lte": date_to}, "status": "COMPLETED"}
         
         sales_pipeline = [
             {"$match": date_match},
@@ -278,7 +288,7 @@ def analytics():
         insights = [
             f"Revenue reached Rs {total_rev:,.2f} across {total_ord} orders in the last 30 days.",
             f"{top_prod} is currently your best-selling product.",
-            f"There are {ls_count} items running low on stock."
+            f"There are {ls_count} low stock alerts across all branches."
         ]
         
         return jsonify({
@@ -301,7 +311,7 @@ def analytics():
 def customer_behavior():
     if db is None: return jsonify([])
     customer_id = request.args.get('customerId')
-    match_stage = {"customer": {"$ne": None}}
+    match_stage = {"customer": {"$ne": None}, "status": "COMPLETED"}
     if customer_id:
         try:
             match_stage["customer"] = ObjectId(customer_id)
@@ -397,7 +407,7 @@ def personalized(customer_id):
         cid = customer_id
         
     pipeline = [
-        {"$match": {"customer": cid}},
+        {"$match": {"customer": cid, "status": "COMPLETED"}},
         {"$unwind": "$items"},
         {"$group": {"_id": "$items.product", "score": {"$sum": "$items.quantity"}, "name": {"$first": "$items.name"}}},
         {"$sort": {"score": -1}},
@@ -420,48 +430,59 @@ def decisions():
             "as": "product_details"
         }},
         {"$unwind": "$product_details"},
+        {"$lookup": {
+            "from": "branches",
+            "localField": "branch",
+            "foreignField": "_id",
+            "as": "branch_details"
+        }},
+        {"$unwind": {"path": "$branch_details", "preserveNullAndEmptyArrays": True}},
         {"$project": {
             "productId": {"$toString": "$product"},
+            "branchId": {"$toString": "$branch"},
             "productName": "$product_details.name",
+            "branchName": {"$ifNull": ["$branch_details.name", "Main Branch"]},
             "currentStock": "$quantity",
             "reorderLevel": "$product_details.reorderLevel",
             "isLow": {"$lte": ["$quantity", "$product_details.reorderLevel"]}
         }},
         {"$match": {"isLow": True}},
         {"$sort": {"currentStock": 1}},
-        {"$limit": 1}
+        {"$limit": 15}
     ]
     ls_res = list(db.inventories.aggregate(ls_pipeline))
-    if ls_res:
-        item = ls_res[0]
+    for item in ls_res:
         reorder_lvl = item.get("reorderLevel") or 10
         actions.append({
-            "id": f"action_ls_{item['productId']}",
+            "id": f"action_ls_{item['productId']}_{item.get('branchId', 'all')}",
             "type": "LOW_STOCK",
-            "urgency": "critical",
+            "urgency": "critical" if item.get("currentStock", 0) <= 0 else "warning",
             "productId": item["productId"],
+            "branchId": item.get("branchId"),
             "productName": item["productName"],
+            "branchName": item.get("branchName"),
             "currentStock": item["currentStock"],
             "reorderLevel": reorder_lvl,
             "suggestedQuantity": max(reorder_lvl * 2, 50),
-            "action": "create_po"
+            "description": f"Current stock at {item.get('branchName')} is {item['currentStock']}. Minimum threshold is {reorder_lvl}. Recommend restocking {max(reorder_lvl * 2, 50)} immediately.",
+            "actionText": "Restock Now",
+            "action": "restock"
         })
         
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
     tr_pipeline = [
-        {"$match": {"createdAt": {"$gte": seven_days_ago}}},
+        {"$match": {"createdAt": {"$gte": seven_days_ago}, "status": "COMPLETED"}},
         {"$unwind": "$items"},
-        {"$group": {"_id": "$items.product", "totalSold": {"$sum": "$items.quantity"}, "name": {"$first": "$items.name"}}},
+        {"$group": {"_id": "$items.product", "totalSold": {"$sum": "$items.quantity"}, "name": {"$first": "$items.name"}, "revenue": {"$sum": "$items.lineTotal"}}},
         {"$sort": {"totalSold": -1}},
-        {"$limit": 1}
+        {"$limit": 3}
     ]
     tr_res = list(db.sales.aggregate(tr_pipeline))
-    if tr_res:
-        item = tr_res[0]
+    for item in tr_res:
         actions.append({
             "id": f"action_tr_{str(item['_id'])}",
             "type": "TRENDING",
-            "urgency": "warning",
+            "urgency": "info",
             "productId": str(item["_id"]),
             "productName": item["name"],
             "growth": 150, 

@@ -4,6 +4,7 @@ const Inventory = require('../models/Inventory');
 const Sale = require('../models/Sale');
 const Return = require('../models/Return');
 const Supplier = require('../models/Supplier');
+const Promotion = require('../models/Promotion');
 const Branch = require('../models/Branch');
 const mongoose = require('mongoose');
 
@@ -340,24 +341,78 @@ const createPurchaseOrder = async (productId, quantity, supplierId) => {
   };
 };
 
-const sendOffer = async (customerId, offerDetails) => {
-  // Log the offer action (real tracking)
-  return {
-    success: true,
-    message: 'Offer sent successfully to customer',
-    status: 'SENT'
-  };
+const sendOffer = async (productId, discountValue, endDateStr) => {
+  try {
+    let product;
+    if (productId && mongoose.Types.ObjectId.isValid(productId)) {
+      product = await Product.findById(productId);
+    }
+    
+    if (!product) {
+      return { success: false, message: 'Product not found for the offer.' };
+    }
+
+    const endDate = endDateStr ? new Date(endDateStr) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const code = `TRENDING_${Math.floor(Math.random() * 10000)}`;
+
+    const promotion = await Promotion.create({
+      title: `Trending Offer: ${product.name}`,
+      description: `Special discount offer for trending product ${product.name}`,
+      discountType: 'PERCENTAGE',
+      discountValue: Number(discountValue),
+      startDate: new Date(),
+      endDate: endDate,
+      applicableProducts: [product._id],
+      couponCode: code,
+      isActive: true
+    });
+
+    return {
+      success: true,
+      message: 'Promotion created successfully',
+      couponCode: code,
+      promotionId: promotion._id
+    };
+  } catch (error) {
+    console.error('Error creating offer:', error);
+    return { success: false, message: 'Failed to create offer' };
+  }
 };
 
-const triggerReorder = async (productId, quantity) => {
-  // Trigger a reorder by creating a PO
-  const result = await createPurchaseOrder(productId, quantity, null);
-  return {
-    success: result.success,
-    message: result.success ? 'Reorder triggered — Purchase Order created' : result.message,
-    status: result.success ? 'PROCESSING' : 'FAILED',
-    poId: result.poId
-  };
+const triggerReorder = async (productId, branchId, quantity) => {
+  try {
+    const qty = Number(quantity);
+    
+    // Auto-restock: Update inventory directly
+    const inventory = await Inventory.findOneAndUpdate(
+      { product: productId, branch: branchId },
+      { $inc: { quantity: qty } },
+      { new: true }
+    );
+
+    if (!inventory) {
+      return { success: false, message: 'Inventory record not found for this branch.' };
+    }
+
+    // Create a Purchase Order marked as RECEIVED for the audit trail
+    const result = await createPurchaseOrder(productId, qty, null);
+    if (result.success && result.poId) {
+      await PurchaseOrder.updateOne(
+        { poNumber: result.poId },
+        { $set: { status: 'RECEIVED' } }
+      );
+    }
+
+    return {
+      success: true,
+      message: `Successfully restocked ${qty} units. New stock is ${inventory.quantity}.`,
+      status: 'COMPLETED',
+      poId: result.success ? result.poId : null
+    };
+  } catch (error) {
+    console.error('Error auto-restocking:', error);
+    return { success: false, message: 'Failed to auto-restock' };
+  }
 };
 
 const approveAllPending = async () => {

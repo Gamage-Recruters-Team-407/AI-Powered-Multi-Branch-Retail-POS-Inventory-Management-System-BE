@@ -14,7 +14,7 @@ const {
   getBranchPerformance,
   getAllBranchesWithPerformance,
   updateBranchSettings,
-} = require("../controllers/branchController");
+} = require("../controllers/branchController.js");
 
 //make manager baranch accssible to only for Admin
 const { protect } = require("../middleware/authMiddleware");

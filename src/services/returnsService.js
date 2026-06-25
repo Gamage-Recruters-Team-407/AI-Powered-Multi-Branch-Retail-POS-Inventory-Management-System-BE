@@ -234,6 +234,27 @@ const buildDemoReturnFromInvoice = (invoice, sequence, overrides = {}) => {
 };
 
 class ReturnsService {
+  async ensureInvoiceFromSale(invoiceId) {
+    const sale = await Sale.findOne({
+      invoiceNumber: invoiceId,
+      status: { $in: ["COMPLETED", "REFUNDED"] },
+    })
+      .populate("customer", "firstName lastName email")
+      .populate("branch", "name");
+
+    if (!sale) {
+      return null;
+    }
+
+    const invoiceData = mapSaleToInvoice(sale);
+
+    return Invoice.findOneAndUpdate(
+      { id: invoiceData.id },
+      { $set: invoiceData },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  }
+
   async seedDefaultData() {
     try {
       const invoiceCount = await Invoice.countDocuments();
@@ -330,12 +351,38 @@ class ReturnsService {
 
   async getAllInvoices() {
     await this.seedDefaultData();
+
+    const recentSales = await Sale.find({ status: { $in: ["COMPLETED", "REFUNDED"] } })
+      .populate("customer", "firstName lastName email")
+      .populate("branch", "name")
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    if (recentSales.length > 0) {
+      const invoiceWrites = recentSales.map((sale) => {
+        const invoiceData = mapSaleToInvoice(sale);
+        return Invoice.findOneAndUpdate(
+          { id: invoiceData.id },
+          { $set: invoiceData },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+      });
+
+      await Promise.all(invoiceWrites);
+    }
+
     return Invoice.find({}).sort({ createdAt: -1 });
   }
 
   async getInvoiceById(invoiceId) {
     await this.seedDefaultData();
-    return Invoice.findOne({ id: invoiceId });
+
+    const existingInvoice = await Invoice.findOne({ id: invoiceId });
+    if (existingInvoice) {
+      return existingInvoice;
+    }
+
+    return this.ensureInvoiceFromSale(invoiceId);
   }
 
   async getAllReturns() {
@@ -346,7 +393,10 @@ class ReturnsService {
   async createReturn(data) {
     await this.seedDefaultData();
 
-    const invoice = await Invoice.findOne({ id: data.invoiceId });
+    const invoice =
+      (await Invoice.findOne({ id: data.invoiceId })) ||
+      (await this.ensureInvoiceFromSale(data.invoiceId));
+
     if (!invoice) {
       const error = new Error(`Invoice with ID ${data.invoiceId} not found.`);
       error.statusCode = 404;

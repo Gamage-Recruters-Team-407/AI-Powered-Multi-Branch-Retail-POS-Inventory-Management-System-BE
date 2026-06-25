@@ -9,6 +9,7 @@ const cloudinary = require("../config/cloudinary");
 const { isMongoConnected } = require("../middleware/requireMongoConnection");
 const fs = require("fs");
 const path = require("path");
+const Branch = require("../models/Branch");
 
 // Helper to save file locally on disk fallback
 const saveLocalFile = (req) => {
@@ -45,7 +46,8 @@ const getAllEmployees = async (req, res) => {
         return res.status(200).json({ success: true, employees: [] });
     }
     try {
-        const employees = await Employee.find();
+        // const employees = await Employee.find();
+        const employees = await Employee.find().populate('branch', 'name');
 
         const roleOrder = {
             'admin': 1,
@@ -103,6 +105,7 @@ const getEmployeeById = async (req, res) => {
 // @desc    Register a new staff member
 // @route   POST /api/employees
 // @access  Public
+
 const addEmployee = async (req, res) => {
     try {
         const {
@@ -220,6 +223,12 @@ const addEmployee = async (req, res) => {
 
         const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
+        let branchName = "";
+        if (validBranch) {
+            const branchDoc = await Branch.findById(validBranch);
+            branchName = branchDoc ? branchDoc.name : "";
+        }
+
         // Define the role to use (defaults to input or CASHIER)
         let employeeRole = role ? role.toUpperCase() : "CASHIER";
 
@@ -260,6 +269,7 @@ const addEmployee = async (req, res) => {
             role: employeeRole,
             salary: salary || 40000,
             branch: validBranch,
+            branchName: branchName, 
             joiningDate: hireDate || new Date(),
             photo: imageUrl,
             status: "Active",
@@ -337,6 +347,7 @@ const updateEmployee = async (req, res) => {
 
         const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
+
         // Validate updates if provided
         const nameRegex = /^[a-zA-Z\s\-']{2,50}$/;
         if (firstName !== undefined && !nameRegex.test(firstName.trim())) {
@@ -383,6 +394,14 @@ const updateEmployee = async (req, res) => {
                     success: false,
                     message: "Please provide a valid Sri Lankan mobile number."
                 });
+            }
+        }
+
+        if (branch !== undefined) {
+            employee.branch = validBranch;
+            if (validBranch) {
+                const branchDoc = await Branch.findById(validBranch);
+                employee.branchName = branchDoc ? branchDoc.name : "";
             }
         }
         if (salary !== undefined && Number(salary) <= 0) {
