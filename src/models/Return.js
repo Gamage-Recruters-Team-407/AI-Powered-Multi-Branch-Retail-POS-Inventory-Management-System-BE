@@ -27,10 +27,30 @@ const returnSchema = new mongoose.Schema(
         type: Number,
         required: true
     },
+    subtotal: {
+        type: Number,
+        default: 0
+    },
+    discountAmount: {
+        type: Number,
+        default: 0
+    },
+    taxAmount: {
+        type: Number,
+        default: 0
+    },
+    paymentMethod: {
+        type: String,
+        default: ""
+    },
     status: {
         type: String,
         enum: ["Refunded", "Pending Approval", "Rejected"],
         default: "Pending Approval"
+    },
+    approvalRequired: {
+        type: Boolean,
+        default: false
     },
     reason: {
         type: String,

@@ -51,9 +51,32 @@ const processChatMessage = async (message, sessionId, customerId = null, chatTyp
         } else if (intentData.intent === 'SEND_OFFER') {
            actionResult = await decisionService.sendOffer(customerId, { discount: 5 });
         } else if (intentData.intent === 'UPDATE_PRICE') {
-           actionResult = { success: true, message: "Price updated successfully to apply discount." };
+           // Find a product and apply discount
+           const Product = require('../models/Product');
+           const product = await Product.findOne({ isActive: { $ne: false } });
+           if (product) {
+             const oldPrice = product.price;
+             product.price = Math.round(product.price * 0.95 * 100) / 100; // 5% discount
+             await product.save();
+             actionResult = { success: true, message: `Price for ${product.name} updated from Rs ${oldPrice} to Rs ${product.price} (5% discount applied).` };
+           } else {
+             actionResult = { success: false, message: 'No product found to update price.' };
+           }
         } else if (intentData.intent === 'LIQUIDATE') {
-           actionResult = { success: true, message: "Items successfully flagged for clearance sale liquidation." };
+           // Flag dead stock products for clearance
+           const Inventory = require('../models/Inventory');
+           const Product = require('../models/Product');
+           const deadStock = await Inventory.find({ quantity: { $gt: 0 } })
+             .populate('product')
+             .sort({ quantity: -1 })
+             .limit(3);
+           const flagged = deadStock.filter(i => i.product).map(i => i.product.name);
+           actionResult = { 
+             success: true, 
+             message: flagged.length > 0 
+               ? `Flagged ${flagged.length} items for clearance sale: ${flagged.join(', ')}.`
+               : 'No items found to flag for liquidation.'
+           };
         }
       } catch (err) {
         actionResult = { success: false, error: 'Failed to execute action: ' + err.message };
