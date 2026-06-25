@@ -9,6 +9,7 @@ const warehouseSchema = new mongoose.Schema(
     manager:  { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     capacity: { type: Number, required: true }, // total capacity units
     isActive: { type: Boolean, default: true },
+    isMain:   { type: Boolean, default: false }, // main/central warehouse flag
   },
   { timestamps: true }
 );
