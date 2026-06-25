@@ -110,8 +110,12 @@ const getBranchInventory = async (branchId) => {
 // ===============================
 // BRANCH SALES
 // ===============================
+// 
+
 const getBranchSales = async (branchId) => {
-  return await Sale.find({ branch: branchId });
+  return await Sale.find({ branch: branchId })
+    .populate("cashier", "firstName lastName email")
+    .sort({ createdAt: -1 });
 };
 
 // ===============================
