@@ -29,6 +29,11 @@ const employeeSchema = new mongoose.Schema(
         ref: "Branch"
     },
 
+    branchName: {          // ← මේක add කරන්න
+        type: String,
+        default: ""
+    },
+
     joiningDate: Date,
 
     photo: {
