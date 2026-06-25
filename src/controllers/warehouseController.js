@@ -1,7 +1,10 @@
+const mongoose = require("mongoose");
 const Warehouse = require("../models/Warehouse");
 const WarehouseZone = require("../models/WarehouseZone");
 const WarehouseStock = require("../models/WarehouseStock");
 const WarehouseTransaction = require("../models/WarehouseTransaction");
+const Inventory = require("../models/Inventory");
+const Product = require("../models/Product");
 const systemEvents = require("../events/eventBus");
 
 // ─────────────────────────────────────────────
@@ -216,16 +219,26 @@ const transferStock = async (req, res) => {
   try {
     const { fromWarehouse, fromZone, toWarehouse, toZone, product, quantity, toBranch, note } = req.body;
 
+    const qty = Number(quantity);
+    let totalDeduction = qty;
+    let branchesToDistribute = [];
+
+    if (toBranch === "all") {
+      const Branch = require("../models/Branch");
+      branchesToDistribute = await Branch.find({});
+      totalDeduction = qty * branchesToDistribute.length;
+    }
+
     // Check source stock
     const sourceStock = await WarehouseStock.findOne({ warehouse: fromWarehouse, zone: fromZone, product });
-    if (!sourceStock || sourceStock.quantity < quantity) {
-      return res.status(400).json({ message: "Insufficient stock in source warehouse" });
+    if (!sourceStock || sourceStock.quantity < totalDeduction) {
+      return res.status(400).json({ message: `Insufficient stock in source warehouse. Requires ${totalDeduction} units total.` });
     }
 
     // Deduct from source
-    sourceStock.quantity -= Number(quantity);
+    sourceStock.quantity -= Number(totalDeduction);
     await sourceStock.save();
-    await WarehouseZone.findByIdAndUpdate(fromZone, { $inc: { currentStock: -Number(quantity) } });
+    await WarehouseZone.findByIdAndUpdate(fromZone, { $inc: { currentStock: -Number(totalDeduction) } });
 
     // Add to destination (if warehouse-to-warehouse)
     if (toWarehouse && toZone) {
@@ -241,13 +254,83 @@ const transferStock = async (req, res) => {
       await WarehouseTransaction.create({ warehouse: toWarehouse, zone: toZone, product, type: "TRANSFER_IN", quantity, fromBranch: fromWarehouse, performedBy: req.user?.id, note });
     }
 
+    // Add to destination branch inventory if toBranch is provided
+    if (toBranch) {
+      const io = req.app.get("io");
+      const productObjectId = new mongoose.Types.ObjectId(product);
+
+      if (toBranch === "all") {
+        for (const branch of branchesToDistribute) {
+          const branchId = branch._id;
+          let branchInventory = await Inventory.findOne({ branch: branchId, product: productObjectId });
+          if (!branchInventory) {
+            branchInventory = new Inventory({
+              branch: branchId,
+              product: productObjectId,
+              quantity: 0,
+              reservedStock: 0,
+              lowStockAlert: false
+            });
+          }
+
+          const oldQuantity = branchInventory.quantity;
+          branchInventory.quantity += Number(qty);
+          branchInventory.lowStockAlert = branchInventory.quantity < 50;
+          await branchInventory.save();
+
+          // Emit socket.io event for real-time stock updates
+          if (io) {
+            const socketRoom = `branch_${branchId.toString()}`;
+            io.to(socketRoom).emit("stockUpdated", {
+              inventoryId: branchInventory._id,
+              productId: productObjectId,
+              branchId,
+              newQuantity: branchInventory.quantity,
+              oldQuantity: oldQuantity,
+              movementType: "transfer_in"
+            });
+          }
+        }
+      } else {
+        const branchId = new mongoose.Types.ObjectId(toBranch);
+        let branchInventory = await Inventory.findOne({ branch: branchId, product: productObjectId });
+        if (!branchInventory) {
+          branchInventory = new Inventory({
+            branch: branchId,
+            product: productObjectId,
+            quantity: 0,
+            reservedStock: 0,
+            lowStockAlert: false
+          });
+        }
+
+        const oldQuantity = branchInventory.quantity;
+        branchInventory.quantity += Number(qty);
+        branchInventory.lowStockAlert = branchInventory.quantity < 50;
+        await branchInventory.save();
+
+        // Emit socket.io event for real-time stock updates
+        if (io) {
+          const socketRoom = `branch_${toBranch}`;
+          io.to(socketRoom).emit("stockUpdated", {
+            inventoryId: branchInventory._id,
+            productId: productObjectId,
+            branchId,
+            newQuantity: branchInventory.quantity,
+            oldQuantity: oldQuantity,
+            movementType: "transfer_in"
+          });
+        }
+      }
+    }
+
     // Record TRANSFER_OUT
     await WarehouseTransaction.create({
       warehouse: fromWarehouse, zone: fromZone, product,
-      type: "TRANSFER_OUT", quantity,
-      toBranch: toBranch || toWarehouse,
+      type: "TRANSFER_OUT", quantity: totalDeduction,
+      toBranch: toBranch === "all" ? undefined : toBranch || undefined,
       performedBy: req.user?.id,
-      note,
+      note: toBranch === "all" ? `${note || ""} (Distributed to all branches)` : note,
     });
 
     // Trigger a notification

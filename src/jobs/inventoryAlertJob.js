@@ -71,13 +71,13 @@ const checkLowStockAndNotify = async () => {
         for (const item of lowStockItems) {
             const productName = item.product ? item.product.name : "Unknown Product";
             const branchName = item.branch ? item.branch.name : "Unknown Branch";
-            const reorderLevel = item.product ? item.product.reorderLevel : 0;
+            const reorderLevel = 50;
             const currentQty = item.quantity;
 
-            lowStockListText += `- ${productName} (${branchName}): ${currentQty} units remaining (Threshold: ${reorderLevel})\n`;
+            lowStockListText += `- ${productName} (${branchName}): ${currentQty} units remaining (Threshold: 50)\n`;
 
             const title = `⚠️ Low Stock Alert: ${productName}`;
-            const message = `Product '${productName}' is running low in branch '${branchName}'. Current stock: ${currentQty} units (Reorder Threshold: ${reorderLevel} units). Please prepare a replenishment purchase order.`;
+            const message = `Product '${productName}' is running low in branch '${branchName}'. Current stock: ${currentQty} units (Reorder Threshold: 50 units). Please prepare a replenishment purchase order.`;
 
             for (const admin of administrators) {
                 const key = `${admin._id.toString()}_${title}`;

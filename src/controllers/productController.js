@@ -116,7 +116,7 @@ const addProduct = async (req, res) => {
                         branch: b._id,
                         quantity: qtyForThisBranch,
                         reservedStock: 0,
-                        lowStockAlert: qtyForThisBranch <= (Number(reorderLevel) || 0)
+                        lowStockAlert: qtyForThisBranch < 50
                     };
                 });
                 await Inventory.insertMany(inventoryEntries);
