@@ -144,6 +144,13 @@ class SupplierService {
 
         if (transactionData.status === "Delivered") {
             supplier.totalSpend = (supplier.totalSpend || 0) + Number(transactionData.amount || 0);
+            if (transactionData.productId) {
+                await this.updateWarehouseStockHelper(
+                    transactionData.productId,
+                    transactionData.itemsCount,
+                    transactionData.id
+                );
+            }
         }
 
         const total = supplier.transactions.length;
@@ -175,7 +182,7 @@ class SupplierService {
     // GET PROCUREMENT HISTORY
     async getProcurementHistory(id) {
         const PurchaseOrder = require("../models/PurchaseOrder");
-        const supplier = await Supplier.findById(id);
+        const supplier = await Supplier.findById(id).populate("transactions.productId");
         if (!supplier) return null;
 
         const manualTxns = (supplier.transactions || []).map(t => ({
@@ -184,7 +191,10 @@ class SupplierService {
             itemsCount: t.itemsCount,
             amount: t.amount,
             status: t.status,
-            type: "Manual"
+            type: "Manual",
+            productId: t.productId?._id || t.productId,
+            productName: t.productId?.name || null,
+            branchId: t.branchId
         }));
 
         const pos = await PurchaseOrder.find({
@@ -406,6 +416,74 @@ class SupplierService {
         return await supplier.save();
     }
 
+    // DELETE TRANSACTION
+    async deleteTransaction(supplierId, transactionId) {
+        const mongoose = require("mongoose");
+        const Supplier = require("../models/Supplier");
+        const PurchaseOrder = require("../models/PurchaseOrder");
+
+        const supplier = await Supplier.findById(supplierId);
+        if (!supplier) return null;
+
+        // 1. Try to find and delete from manual transactions
+        let foundManual = false;
+        if (supplier.transactions) {
+            const tIdx = supplier.transactions.findIndex(t => t.id === transactionId || (t._id && t._id.toString() === transactionId));
+            if (tIdx !== -1) {
+                foundManual = true;
+                supplier.transactions.splice(tIdx, 1);
+                
+                // Recalculate spend & performance metrics
+                const total = supplier.transactions.length;
+                const delivered = supplier.transactions.filter(t => t.status === "Delivered").length;
+                const cancelled = supplier.transactions.filter(t => t.status === "Cancelled").length;
+
+                supplier.performance.returnRate = total > 0 ? Number(((cancelled / total) * 100).toFixed(2)) : 0.0;
+                supplier.performance.onTimeDelivery = total > 0 ? Number(((delivered / total) * 100).toFixed(2)) : 95;
+
+                // Update total spend by recalculating all delivered manual transactions
+                supplier.totalSpend = supplier.transactions.reduce((sum, t) => sum + (t.status === "Delivered" ? Number(t.amount || 0) : 0), 0);
+
+                let recommendation = "Stable performance. Standard operations recommended.";
+                const rating = supplier.rating || 5.0;
+                const onTime = supplier.performance.onTimeDelivery;
+                const retRate = supplier.performance.returnRate;
+                const quality = supplier.performance.qualityScore || 95;
+                const leadTime = supplier.performance.leadTimeDays || 3;
+
+                if (rating >= 4.5 && onTime >= 90) {
+                    recommendation = "Excellent performance. Highly recommended to renew contract.";
+                } else if (retRate > 10 || quality < 80) {
+                    recommendation = "Caution: High return rate or low quality. Consider auditing quality processes.";
+                } else if (onTime < 80 || leadTime > 5) {
+                    recommendation = "Warning: Slow delivery times. Recommend discussing lead times with supplier.";
+                }
+                supplier.aiRecommendation = recommendation;
+
+                await supplier.save();
+                return { success: true, type: "manual", supplier };
+            }
+        }
+
+        // 2. Try to find and delete from Purchase Orders if not found in manual
+        if (!foundManual) {
+            try {
+                let po = await PurchaseOrder.findOne({ poNumber: transactionId });
+                if (!po && mongoose.Types.ObjectId.isValid(transactionId)) {
+                    po = await PurchaseOrder.findById(transactionId);
+                }
+                if (po) {
+                    await PurchaseOrder.deleteOne({ _id: po._id });
+                    return { success: true, type: "po" };
+                }
+            } catch (err) {
+                console.error("Error deleting PurchaseOrder in supplier service:", err);
+            }
+        }
+
+        return null;
+    }
+
     // UPDATE TRANSACTION STATUS
     async updateTransactionStatus(supplierId, transactionId, status) {
         const mongoose = require("mongoose");
@@ -424,8 +502,25 @@ class SupplierService {
                 const amount = Number(supplier.transactions[tIdx].amount || 0);
                 if (oldStatus !== "Delivered" && status === "Delivered") {
                     supplier.totalSpend = (supplier.totalSpend || 0) + amount;
+                    const txn = supplier.transactions[tIdx];
+                    if (txn.productId) {
+                        await this.updateWarehouseStockHelper(
+                            txn.productId,
+                            txn.itemsCount,
+                            txn.id
+                        );
+                    }
                 } else if (oldStatus === "Delivered" && status !== "Delivered") {
                     supplier.totalSpend = Math.max(0, (supplier.totalSpend || 0) - amount);
+                    const txn = supplier.transactions[tIdx];
+                    if (txn.productId) {
+                        await this.updateWarehouseStockHelper(
+                            txn.productId,
+                            -txn.itemsCount,
+                            txn.id,
+                            true
+                        );
+                    }
                 }
 
                 const total = supplier.transactions.length;
@@ -469,8 +564,32 @@ class SupplierService {
                     if (status === "Delivered") poStatus = "Received";
                     else if (status === "Cancelled") poStatus = "Rejected";
                     
+                    const oldPoStatus = po.status;
                     po.status = poStatus;
                     await po.save();
+
+                    if (oldPoStatus !== "Received" && poStatus === "Received") {
+                        for (const item of po.items) {
+                            if (item.product) {
+                                await this.updateWarehouseStockHelper(
+                                    item.product,
+                                    item.quantity,
+                                    po.poNumber || po._id.toString()
+                                );
+                            }
+                        }
+                    } else if (oldPoStatus === "Received" && poStatus !== "Received") {
+                        for (const item of po.items) {
+                            if (item.product) {
+                                await this.updateWarehouseStockHelper(
+                                    item.product,
+                                    -item.quantity,
+                                    po.poNumber || po._id.toString(),
+                                    true
+                                );
+                            }
+                        }
+                    }
                     return { type: "po", po };
                 }
             } catch (err) {
@@ -478,6 +597,129 @@ class SupplierService {
             }
         }
         return null;
+    }
+
+    async deleteTransaction(supplierId, transactionId) {
+        const mongoose = require("mongoose");
+        const supplier = await Supplier.findById(supplierId);
+        if (!supplier) return null;
+
+        // 1. Try manual transactions embedded in supplier doc
+        if (supplier.transactions) {
+            const tIdx = supplier.transactions.findIndex(
+                t => t.id === transactionId || (t._id && t._id.toString() === transactionId)
+            );
+            if (tIdx !== -1) {
+                const txn = supplier.transactions[tIdx];
+                if (txn.status !== "Cancelled") {
+                    throw new Error("Only cancelled transactions can be deleted.");
+                }
+                supplier.transactions.splice(tIdx, 1);
+
+                // Recalculate performance metrics after removal
+                const total = supplier.transactions.length;
+                const delivered = supplier.transactions.filter(t => t.status === "Delivered").length;
+                const cancelled = supplier.transactions.filter(t => t.status === "Cancelled").length;
+                supplier.performance.returnRate = total > 0 ? Number(((cancelled / total) * 100).toFixed(2)) : 0.0;
+                supplier.performance.onTimeDelivery = total > 0 ? Number(((delivered / total) * 100).toFixed(2)) : 95;
+
+                await supplier.save();
+                return { type: "manual", deleted: true };
+            }
+        }
+
+        // 2. Try PurchaseOrder
+        try {
+            const PurchaseOrder = require("../models/PurchaseOrder");
+            let po = await PurchaseOrder.findOne({ poNumber: transactionId });
+            if (!po && mongoose.Types.ObjectId.isValid(transactionId)) {
+                po = await PurchaseOrder.findById(transactionId);
+            }
+            if (po) {
+                const cancelledStatuses = ["Cancelled", "CANCELLED", "Rejected", "REJECTED"];
+                if (!cancelledStatuses.includes(po.status)) {
+                    throw new Error("Only cancelled purchase orders can be deleted.");
+                }
+                await po.deleteOne();
+                return { type: "po", deleted: true };
+            }
+        } catch (err) {
+            if (err.message.includes("cancelled")) throw err;
+            console.error("Error deleting PurchaseOrder in supplier service:", err);
+        }
+
+        return null;
+    }
+
+    async updateWarehouseStockHelper(productId, qtyChange, transactionId, isReduction = false) {
+        const Warehouse = require("../models/Warehouse");
+        const WarehouseZone = require("../models/WarehouseZone");
+        const WarehouseStock = require("../models/WarehouseStock");
+        const WarehouseTransaction = require("../models/WarehouseTransaction");
+        const mongoose = require("mongoose");
+
+        try {
+            let warehouse = await Warehouse.findOne({ isMain: true, isActive: true });
+            if (!warehouse) {
+                warehouse = await Warehouse.findOne({ isActive: true });
+            }
+            if (!warehouse) {
+                console.error("No active warehouse found to update stock.");
+                return;
+            }
+
+            let zone = await WarehouseZone.findOne({ warehouse: warehouse._id, isActive: true });
+            if (!zone) {
+                zone = await WarehouseZone.create({
+                    warehouse: warehouse._id,
+                    zoneName: "Default Zone",
+                    zoneCode: "DEFAULT",
+                    capacity: 10000,
+                    currentStock: 0,
+                    isActive: true
+                });
+            }
+
+            const changeAmount = Number(qtyChange);
+            if (!changeAmount || isNaN(changeAmount)) return;
+
+            let stock = await WarehouseStock.findOne({
+                warehouse: warehouse._id,
+                zone: zone._id,
+                product: productId
+            });
+
+            if (stock) {
+                stock.quantity = Math.max(0, stock.quantity + changeAmount);
+                await stock.save();
+            } else if (changeAmount > 0) {
+                stock = await WarehouseStock.create({
+                    warehouse: warehouse._id,
+                    zone: zone._id,
+                    product: productId,
+                    quantity: changeAmount
+                });
+            }
+
+            zone.currentStock = Math.max(0, zone.currentStock + changeAmount);
+            await zone.save();
+
+            await WarehouseTransaction.create({
+                warehouse: warehouse._id,
+                zone: zone._id,
+                product: productId,
+                type: changeAmount < 0 ? "OUT" : "IN",
+                quantity: Math.abs(changeAmount),
+                reference: transactionId,
+                note: isReduction 
+                    ? `Supplier transaction reverted/cancelled: ${transactionId}`
+                    : `Supplier restock order delivered: ${transactionId}`
+            });
+
+            console.log(`Warehouse stock updated for product ${productId}: changed by ${changeAmount} in zone ${zone.zoneName} (${warehouse.name})`);
+        } catch (error) {
+            console.error("Error updating warehouse stock from supplier transaction:", error);
+        }
     }
 }
 

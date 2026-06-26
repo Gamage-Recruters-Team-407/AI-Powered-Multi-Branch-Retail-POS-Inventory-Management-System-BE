@@ -6,6 +6,58 @@ const Category = require("../models/Category.js");
 const Branch = require("../models/Branch.js");
 const Inventory = require("../models/Inventory.js");
 
+// ─────────────────────────────────────────────
+// HELPER: Product Management eken stock update kalama
+// Inventory (branch-level) records update karanawa.
+// Warehouse stock view already Inventory totals aggregate karanawa
+// ─────────────────────────────────────────────
+const syncInventoryFromProductUpdate = async (productId, quantity, branch, reorderLevel) => {
+    try {
+        if (quantity === undefined || quantity === null || quantity === "") return;
+        const qty = Number(quantity);
+        const reorder = Number(reorderLevel) || 0;
+
+        if (branch && branch !== "all" && branch !== "") {
+            // Specific branch eke quantity update karanawa
+            let inv = await Inventory.findOne({ product: productId, branch });
+            if (inv) {
+                inv.quantity = qty;
+                inv.lowStockAlert = qty <= reorder;
+                await inv.save();
+            } else {
+                await Inventory.create({
+                    product: productId,
+                    branch,
+                    quantity: qty,
+                    reservedStock: 0,
+                    lowStockAlert: qty <= reorder
+                });
+            }
+        } else {
+            // "all" branches — all branches walata same quantity set karanawa
+            const branches = await Branch.find({});
+            for (const b of branches) {
+                let inv = await Inventory.findOne({ product: productId, branch: b._id });
+                if (inv) {
+                    inv.quantity = qty;
+                    inv.lowStockAlert = qty <= reorder;
+                    await inv.save();
+                } else {
+                    await Inventory.create({
+                        product: productId,
+                        branch: b._id,
+                        quantity: qty,
+                        reservedStock: 0,
+                        lowStockAlert: qty <= reorder
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        console.error("syncInventoryFromProductUpdate error:", err.message);
+    }
+};
+
 // Add Product
 const addProduct = async (req, res) => {
     try {
@@ -99,15 +151,13 @@ const addProduct = async (req, res) => {
             isActive
         });
 
-        // Automatically create inventory records for branches using the initial quantity
+    
         try {
             const branches = await Branch.find({});
             if (branches && branches.length > 0) {
                 const initQty = Number(quantity) || 0;
                 const inventoryEntries = branches.map(b => {
                     let qtyForThisBranch = initQty;
-                    // If a specific target branch was chosen, assign the quantity only to that branch.
-                    // Otherwise, set the quantity to all branches.
                     if (branch && branch !== "all" && branch !== "") {
                         qtyForThisBranch = b._id.toString() === branch.toString() ? initQty : 0;
                     }
@@ -116,13 +166,66 @@ const addProduct = async (req, res) => {
                         branch: b._id,
                         quantity: qtyForThisBranch,
                         reservedStock: 0,
-                        lowStockAlert: qtyForThisBranch <= (Number(reorderLevel) || 0)
+                        lowStockAlert: qtyForThisBranch < 50
                     };
                 });
                 await Inventory.insertMany(inventoryEntries);
             }
         } catch (invErr) {
             console.error("Error creating initial inventory records for branches:", invErr.message);
+        }
+
+
+        try {
+            const Warehouse = require("../models/Warehouse");
+            const WarehouseZone = require("../models/WarehouseZone");
+            const WarehouseStock = require("../models/WarehouseStock");
+            const WarehouseTransaction = require("../models/WarehouseTransaction");
+
+            let warehouse = await Warehouse.findOne({ isMain: true, isActive: true });
+            if (!warehouse) {
+                warehouse = await Warehouse.findOne({ isActive: true });
+            }
+            if (warehouse) {
+                let zone = await WarehouseZone.findOne({ warehouse: warehouse._id, isActive: true });
+                if (!zone) {
+                    zone = await WarehouseZone.create({
+                        warehouse: warehouse._id,
+                        zoneName: "Default Zone",
+                        zoneCode: "DEFAULT",
+                        capacity: 10000,
+                        currentStock: 0,
+                        isActive: true
+                    });
+                }
+
+                const initQty = Number(quantity) || 0;
+
+                await WarehouseStock.create({
+                    warehouse: warehouse._id,
+                    zone: zone._id,
+                    product: product._id,
+                    quantity: initQty
+                });
+
+                if (initQty > 0) {
+                    zone.currentStock = Math.max(0, zone.currentStock + initQty);
+                    await zone.save();
+
+                    await WarehouseTransaction.create({
+                        warehouse: warehouse._id,
+                        zone: zone._id,
+                        product: product._id,
+                        type: "IN",
+                        quantity: initQty,
+                        reference: "PRODUCT_CREATION",
+                        note: `Initial stock from product registration: ${name}`
+                    });
+                }
+                console.log(`Warehouse stock initialized for product ${product._id}: ${initQty} units in zone ${zone.zoneName}`);
+            }
+        } catch (whErr) {
+            console.error("Error creating initial warehouse stock record:", whErr.message);
         }
 
         systemEvents.emit("SEND_ALERT", {
@@ -191,9 +294,24 @@ const getProductById = async (req, res) => {
             });
         }
 
+        // Inventory stock info also include karanawa
+        const inventoryRecords = await Inventory.find({ product: req.params.id })
+            .populate("branch", "name");
+
+        const totalStock = inventoryRecords.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+
         res.status(200).json({
             success: true,
-            product
+            product,
+            inventory: {
+                totalStock,
+                byBranch: inventoryRecords.map(inv => ({
+                    branch: inv.branch,
+                    quantity: inv.quantity,
+                    reservedStock: inv.reservedStock,
+                    lowStockAlert: inv.lowStockAlert
+                }))
+            }
         });
 
     } catch (error) {
@@ -206,6 +324,8 @@ const getProductById = async (req, res) => {
 };
 
 // Update Product
+// quantity & branch fields use karala Inventory sync karanawa.
+// Warehouse stock view already Inventory totals aggregate karanawa → auto reflect.
 const updateProduct = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id);
@@ -274,6 +394,8 @@ const updateProduct = async (req, res) => {
             categoryName = selectedCategory.name;
         }
 
+        const newReorderLevel = req.body.reorderLevel ?? product.reorderLevel;
+
         product.name = req.body.name ?? product.name;
         product.barcode = req.body.barcode ?? product.barcode;
         product.category = req.body.category ?? product.category;
@@ -283,13 +405,27 @@ const updateProduct = async (req, res) => {
         product.description = req.body.description ?? product.description;
         product.price = req.body.price ?? product.price;
         product.costPrice = req.body.costPrice ?? product.costPrice;
-        product.reorderLevel = req.body.reorderLevel ?? product.reorderLevel;
+        product.reorderLevel = newReorderLevel;
         product.unit = req.body.unit ?? product.unit;
         product.isActive = req.body.isActive ?? product.isActive;
         product.image = imageUrl;
         product.imagePublicId = imagePublicId;
 
         const updatedProduct = await product.save();
+
+        // ── Inventory Sync ──────────────────────────────────────────
+        // Product management eken quantity update kalama,
+        // Inventory (branch-level) records update karanawa.
+        // Warehouse stock view already Inventory aggregate karanawa → auto reflect.
+        if (req.body.quantity !== undefined && req.body.quantity !== null && req.body.quantity !== "") {
+            await syncInventoryFromProductUpdate(
+                updatedProduct._id,
+                req.body.quantity,
+                req.body.branch,
+                newReorderLevel
+            );
+        }
+        // ────────────────────────────────────────────────────────────
 
         systemEvents.emit("SEND_ALERT", {
             target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER", "CASHIER"] },
@@ -312,6 +448,52 @@ const updateProduct = async (req, res) => {
             message: "Error updating product",
             error: error.message
         });
+    }
+};
+
+// Update Product Stock Only (dedicated endpoint)
+// PUT /api/products/:id/stock
+const updateProductStock = async (req, res) => {
+    try {
+        const { quantity, branch } = req.body;
+
+        if (quantity === undefined || quantity === null) {
+            return res.status(400).json({ success: false, message: "quantity is required" });
+        }
+
+        const product = await Product.findById(req.params.id);
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        await syncInventoryFromProductUpdate(
+            product._id,
+            quantity,
+            branch,
+            product.reorderLevel
+        );
+
+        // Updated totals return karanawa
+        const inventoryRecords = await Inventory.find({ product: product._id });
+        const totalStock = inventoryRecords.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+
+        systemEvents.emit("SEND_ALERT", {
+            target: { roles: ["SUPER_ADMIN", "ADMIN", "MANAGER"] },
+            category: "INVENTORY",
+            type: "INFO",
+            title: "Stock Updated",
+            message: `Stock for "${product.name}" updated to ${quantity} units${branch && branch !== "all" ? " (specific branch)" : " (all branches)"}.`,
+            channels: ["in-app"]
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Stock updated successfully",
+            totalStock,
+            product: product.name
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error updating stock", error: error.message });
     }
 };
 
@@ -579,6 +761,7 @@ module.exports = {
     getAllProducts,
     getProductById,
     updateProduct,
+    updateProductStock,
     deactivateProduct,
     deleteProduct,
     getProductByBarcode,
@@ -586,4 +769,4 @@ module.exports = {
     getActiveProducts,
     getInactiveProducts,
     reactivateProduct
-};  
+};

@@ -1,5 +1,7 @@
 const AuditLog = require("../models/AuditLog");
 const SecurityEvent = require("../models/SecurityEvent");
+const Employee = require("../models/Employee");
+const User = require("../models/User");
 
 const AuditService = {
   async log({
@@ -24,13 +26,118 @@ const AuditService = {
         ? (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.ip || "unknown").split(",")[0].trim()
         : "SYSTEM";
 
+      let userName = "System";
+      let userRole = "SYSTEM";
+      let userEmail = "";
+      let userBranch = null;
+      let userBranchName = null;
+
+      const getEmployeeDetails = async (userId) => {
+        try {
+          const employee = await Employee.findOne({ user: userId }).populate('branch', 'name');
+          if (employee) {
+            const empName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
+            return {
+              userName: empName || employee.name || null,
+              userRole: employee.role || null,
+              userEmail: employee.email || null,
+              userBranch: employee.branch || null,
+              userBranchName: employee.branchName || null,
+            };
+          }
+          return null;
+        } catch (err) {
+          return null;
+        }
+      };
+
+      const getUserDetails = (userObj) => {
+        return {
+          userName: userObj.name || `${userObj.firstName || ""} ${userObj.lastName || ""}`.trim() || userObj.email || "Unknown",
+          userRole: userObj.role || "STAFF",
+          userEmail: userObj.email || "",
+          userBranch: userObj.branch || null,
+        };
+      };
+
+      if (user) {
+        const userDetails = getUserDetails(user);
+        userName = userDetails.userName;
+        userRole = userDetails.userRole;
+        userEmail = userDetails.userEmail;
+        userBranch = userDetails.userBranch;
+
+        const employeeDetails = await getEmployeeDetails(user._id || user.id);
+        if (employeeDetails) {
+          userName = employeeDetails.userName || userName;
+          userRole = employeeDetails.userRole || userRole;
+          userEmail = employeeDetails.userEmail || userEmail;
+          userBranch = employeeDetails.userBranch || userBranch;
+          userBranchName = employeeDetails.userBranchName || null;
+        }
+      }
+
+      if (!user && req && req.user) {
+        const reqUser = req.user;
+        const userDetails = getUserDetails(reqUser);
+        userName = userDetails.userName;
+        userRole = userDetails.userRole;
+        userEmail = userDetails.userEmail;
+        userBranch = userDetails.userBranch;
+
+        const employeeDetails = await getEmployeeDetails(reqUser._id || reqUser.id);
+        if (employeeDetails) {
+          userName = employeeDetails.userName || userName;
+          userRole = employeeDetails.userRole || userRole;
+          userEmail = employeeDetails.userEmail || userEmail;
+          userBranch = employeeDetails.userBranch || userBranch;
+          userBranchName = employeeDetails.userBranchName || null;
+        }
+      }
+
+      if ((!user || userName === "System") && req && req.body) {
+        const { email } = req.body;
+        if (email) {
+          userEmail = email;
+          try {
+            const employee = await Employee.findOne({ email: email.toLowerCase() }).populate('branch', 'name');
+            if (employee) {
+              const empName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
+              userName = empName || employee.name || email.split('@')[0];
+              userRole = employee.role || "STAFF";
+              userEmail = employee.email || email;
+              userBranch = employee.branch || null;
+              userBranchName = employee.branchName || null;
+            } else {
+              userName = email.split('@')[0]
+                .replace(/[_.-]/g, ' ')
+                .split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(' ');
+            }
+          } catch (err) {
+            // Silent fail
+          }
+        }
+      }
+
+      if ((userName === "System" || userName === "Unknown") && userEmail) {
+        userName = userEmail.split('@')[0]
+          .replace(/[_.-]/g, ' ')
+          .split(' ')
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(' ');
+      }
+
+      if (userRole === "SYSTEM" && user && user.role) {
+        userRole = user.role;
+      }
+
       const entry = {
         user: user?._id || user?.id || null,
-        userName: user
-          ? user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "Unknown"
-          : "System",
-        userRole: user?.role || "SYSTEM",
-        userEmail: user?.email || "",
+        userName: userName,
+        userRole: userRole,
+        userEmail: userEmail,
         action,
         module,
         resourceType,
@@ -45,17 +152,15 @@ const AuditService = {
         metadata: AuditService._sanitizeData(metadata),
         severity: severity === "INFO" ? AuditService._inferSeverity(action, status) : severity,
         status,
-        branch: branch || user?.branch || null,
-        branchName,
+        branch: branch || userBranch || null,
+        branchName: branchName || userBranchName || null,
         sessionId,
       };
 
-      if (["SUSPICIOUS_ACTIVITY", "UNAUTHORIZED_ACCESS", "ACCOUNT_LOCKED"].includes(action) ||
+      if (["SUSPICIOUS_ACTIVITY", "UNAUTHORIZED_ACCESS", "ACCOUNT_LOCKED", "LOGIN_FAILED"].includes(action) ||
           entry.severity === "CRITICAL" || entry.severity === "HIGH") {
         entry.flagged = true;
         entry.flagReason = `Auto-flagged: ${action}`;
-        
-        // Also create SecurityEvent
         await AuditService._createSecurityEvent(entry, action);
       }
 
@@ -94,7 +199,7 @@ const AuditService = {
       });
       await securityEvent.save();
     } catch (err) {
-      console.error("Failed to create security event:", err);
+      // Silent fail
     }
   },
 
