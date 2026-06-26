@@ -24,9 +24,8 @@ const calculateStockAfterMovement = (currentStock, quantityChange) => {
  * @param {number} reorderLevel - The threshold for low stock alert
  * @returns {boolean} True if stock is low, false otherwise
  */
-const validateReorderPoint = (currentQuantity, reorderLevel) => {
-    if (typeof reorderLevel !== "number") return false;
-    return currentQuantity <= reorderLevel;
+const validateReorderPoint = (currentQuantity) => {
+    return currentQuantity < 50;
 };
 
 /**
@@ -75,7 +74,7 @@ const updateInventoryStock = async (
     // 4. Update the inventory quantity and low‑stock flag
     inventory.quantity = newQuantity;
     
-    const isLowStock = validateReorderPoint(newQuantity, product.reorderLevel);
+    const isLowStock = validateReorderPoint(newQuantity);
     inventory.lowStockAlert = isLowStock;
 
     if (session) {
