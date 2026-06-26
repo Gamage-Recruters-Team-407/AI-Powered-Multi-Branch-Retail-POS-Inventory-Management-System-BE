@@ -1,8 +1,9 @@
 const Sale = require("../models/Sale");
 const Product = require("../models/Product");
+const Inventory = require("../models/Inventory");
 
 const createSale = async (req, res) => {
-  const deductedProducts = [];
+  const deductedItems = [];
 
   try {
     const {
@@ -21,10 +22,18 @@ const createSale = async (req, res) => {
       });
     }
 
+    const branchId = req.user?.branch;
+
+    if (!branchId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cashier is not assigned to a branch.",
+      });
+    }
+
     const enrichedItems = [];
     let subtotal = 0;
 
-    // 1. Validate products and stock
     for (const item of items) {
       const productId = item.productId || item.product || item._id;
       const quantity = Number(item.quantity || item.qty || 0);
@@ -52,13 +61,17 @@ const createSale = async (req, res) => {
         });
       }
 
-      // You are using reorderLevel as stock count
-      const availableStock = Number(product.reorderLevel || 0);
+      const inventoryRecord = await Inventory.findOne({
+        product: product._id,
+        branch: branchId,
+      });
+
+      const availableStock = inventoryRecord ? Number(inventoryRecord.quantity || 0) : 0;
 
       if (availableStock < quantity) {
         return res.status(400).json({
           success: false,
-          message: `${product.name} has only ${availableStock} stock available.`,
+          message: `${product.name} has only ${availableStock} stock available at this branch.`,
         });
       }
 
@@ -92,7 +105,6 @@ const createSale = async (req, res) => {
       (subtotal - safeDiscountAmount + taxAmount).toFixed(2)
     );
 
-    // 2. Validate payment before reducing stock
     if (paymentMethod === "CASH") {
       if (!cashReceived || Number(cashReceived) < totalAmount) {
         return res.status(400).json({
@@ -102,40 +114,34 @@ const createSale = async (req, res) => {
       }
     }
 
-    // 3. Reduce stock from Product.reorderLevel
     for (const item of enrichedItems) {
-      const updatedProduct = await Product.findOneAndUpdate(
+      const updatedInventory = await Inventory.findOneAndUpdate(
         {
-          _id: item.product,
-          reorderLevel: { $gte: item.quantity },
+          product: item.product,
+          branch: branchId,
+          quantity: { $gte: item.quantity },
         },
         {
-          $inc: {
-            reorderLevel: -item.quantity,
-          },
+          $inc: { quantity: -item.quantity },
         },
-        {
-          new: true,
-        }
+        { new: true }
       );
 
-      if (!updatedProduct) {
-        // rollback already reduced products
-        for (const rollbackItem of deductedProducts) {
-          await Product.findByIdAndUpdate(rollbackItem.product, {
-            $inc: {
-              reorderLevel: rollbackItem.quantity,
-            },
-          });
+      if (!updatedInventory) {
+        for (const rollbackItem of deductedItems) {
+          await Inventory.findOneAndUpdate(
+            { product: rollbackItem.product, branch: branchId },
+            { $inc: { quantity: rollbackItem.quantity } }
+          );
         }
 
         return res.status(400).json({
           success: false,
-          message: `${item.name} does not have enough stock available.`,
+          message: `${item.name} does not have enough stock available at this branch.`,
         });
       }
 
-      deductedProducts.push({
+      deductedItems.push({
         product: item.product,
         quantity: item.quantity,
       });
@@ -146,11 +152,10 @@ const createSale = async (req, res) => {
         ? Number((Number(cashReceived) - totalAmount).toFixed(2))
         : 0;
 
-    // 4. Save sale
     const sale = new Sale({
       customer: customerId || null,
       cashier: req.user?._id,
-      branch: req.user?.branch || null,
+      branch: branchId,
       items: enrichedItems,
       subtotal,
       discountAmount: safeDiscountAmount,
@@ -176,13 +181,11 @@ const createSale = async (req, res) => {
       data: populatedSale,
     });
   } catch (error) {
-    // rollback stock if sale fails
-    for (const rollbackItem of deductedProducts) {
-      await Product.findByIdAndUpdate(rollbackItem.product, {
-        $inc: {
-          reorderLevel: rollbackItem.quantity,
-        },
-      });
+    for (const rollbackItem of deductedItems) {
+      await Inventory.findOneAndUpdate(
+        { product: rollbackItem.product, branch: req.user?.branch },
+        { $inc: { quantity: rollbackItem.quantity } }
+      );
     }
 
     console.error("createSale error:", error);
@@ -195,7 +198,6 @@ const createSale = async (req, res) => {
   }
 };
 
-// Get all sales
 const getAllSales = async (req, res) => {
   try {
     const {
@@ -266,7 +268,6 @@ const getAllSales = async (req, res) => {
   }
 };
 
-// Get sale by ID
 const getSaleById = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
@@ -304,7 +305,6 @@ const getSaleById = async (req, res) => {
   }
 };
 
-// Void sale and restore Product.reorderLevel
 const voidSale = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id);
@@ -327,9 +327,10 @@ const voidSale = async (req, res) => {
     await sale.save();
 
     for (const item of sale.items) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { reorderLevel: item.quantity },
-      });
+      await Inventory.findOneAndUpdate(
+        { product: item.product, branch: sale.branch },
+        { $inc: { quantity: item.quantity } }
+      );
     }
 
     return res.json({
@@ -348,7 +349,6 @@ const voidSale = async (req, res) => {
   }
 };
 
-// Sales summary
 const getSalesSummary = async (req, res) => {
   try {
     const { period = "today", startDate: qStart, endDate: qEnd } = req.query;
@@ -406,9 +406,7 @@ const getSalesSummary = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-  
 
-// Product by barcode using reorderLevel as stock
 const getProductByBarcode = async (req, res) => {
   try {
     const product = await Product.findOne({
@@ -424,7 +422,17 @@ const getProductByBarcode = async (req, res) => {
     }
 
     const productObject = product.toObject();
-    const stock = Number(productObject.reorderLevel || 0);
+
+    const branchId = req.user?.branch;
+    let stock = 0;
+
+    if (branchId) {
+      const inventoryRecord = await Inventory.findOne({
+        product: product._id,
+        branch: branchId,
+      });
+      stock = inventoryRecord ? Number(inventoryRecord.quantity || 0) : 0;
+    }
 
     return res.json({
       success: true,

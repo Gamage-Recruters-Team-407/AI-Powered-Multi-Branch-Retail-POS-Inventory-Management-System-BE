@@ -623,10 +623,34 @@ const getActiveProducts = async (req, res) => {
             .populate("supplier")
             .sort({ createdAt: -1 });
 
+        const branchId = req.query.branchId || req.user?.branch;
+
+        let productsWithStock = products.map((p) => p.toObject());
+
+        if (branchId) {
+            const productIds = products.map((p) => p._id);
+
+            const inventoryRecords = await Inventory.find({
+                product: { $in: productIds },
+                branch: branchId
+            });
+
+            const stockMap = {};
+            inventoryRecords.forEach((inv) => {
+                stockMap[inv.product.toString()] = Number(inv.quantity || 0);
+            });
+
+            productsWithStock = productsWithStock.map((p) => ({
+                ...p,
+                stock: stockMap[p._id.toString()] ?? 0,
+                quantity: stockMap[p._id.toString()] ?? 0,
+            }));
+        }
+
         res.status(200).json({
             success: true,
-            count: products.length,
-            products
+            count: productsWithStock.length,
+            products: productsWithStock
         });
 
     } catch (error) {
