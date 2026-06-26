@@ -6,8 +6,9 @@ const User = require('../models/User');
 const getUsers = async (req, res) => {
   try {
     const users = await User.find()
-      .select('-password')
-      .populate('branch', 'name');
+  .sort({ createdAt: -1 })
+  .select('-password')
+  .populate('branch', 'name');
 
     res.json({ success: true, count: users.length, data: users });
   } catch (error) {
