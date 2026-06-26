@@ -416,6 +416,74 @@ class SupplierService {
         return await supplier.save();
     }
 
+    // DELETE TRANSACTION
+    async deleteTransaction(supplierId, transactionId) {
+        const mongoose = require("mongoose");
+        const Supplier = require("../models/Supplier");
+        const PurchaseOrder = require("../models/PurchaseOrder");
+
+        const supplier = await Supplier.findById(supplierId);
+        if (!supplier) return null;
+
+        // 1. Try to find and delete from manual transactions
+        let foundManual = false;
+        if (supplier.transactions) {
+            const tIdx = supplier.transactions.findIndex(t => t.id === transactionId || (t._id && t._id.toString() === transactionId));
+            if (tIdx !== -1) {
+                foundManual = true;
+                supplier.transactions.splice(tIdx, 1);
+                
+                // Recalculate spend & performance metrics
+                const total = supplier.transactions.length;
+                const delivered = supplier.transactions.filter(t => t.status === "Delivered").length;
+                const cancelled = supplier.transactions.filter(t => t.status === "Cancelled").length;
+
+                supplier.performance.returnRate = total > 0 ? Number(((cancelled / total) * 100).toFixed(2)) : 0.0;
+                supplier.performance.onTimeDelivery = total > 0 ? Number(((delivered / total) * 100).toFixed(2)) : 95;
+
+                // Update total spend by recalculating all delivered manual transactions
+                supplier.totalSpend = supplier.transactions.reduce((sum, t) => sum + (t.status === "Delivered" ? Number(t.amount || 0) : 0), 0);
+
+                let recommendation = "Stable performance. Standard operations recommended.";
+                const rating = supplier.rating || 5.0;
+                const onTime = supplier.performance.onTimeDelivery;
+                const retRate = supplier.performance.returnRate;
+                const quality = supplier.performance.qualityScore || 95;
+                const leadTime = supplier.performance.leadTimeDays || 3;
+
+                if (rating >= 4.5 && onTime >= 90) {
+                    recommendation = "Excellent performance. Highly recommended to renew contract.";
+                } else if (retRate > 10 || quality < 80) {
+                    recommendation = "Caution: High return rate or low quality. Consider auditing quality processes.";
+                } else if (onTime < 80 || leadTime > 5) {
+                    recommendation = "Warning: Slow delivery times. Recommend discussing lead times with supplier.";
+                }
+                supplier.aiRecommendation = recommendation;
+
+                await supplier.save();
+                return { success: true, type: "manual", supplier };
+            }
+        }
+
+        // 2. Try to find and delete from Purchase Orders if not found in manual
+        if (!foundManual) {
+            try {
+                let po = await PurchaseOrder.findOne({ poNumber: transactionId });
+                if (!po && mongoose.Types.ObjectId.isValid(transactionId)) {
+                    po = await PurchaseOrder.findById(transactionId);
+                }
+                if (po) {
+                    await PurchaseOrder.deleteOne({ _id: po._id });
+                    return { success: true, type: "po" };
+                }
+            } catch (err) {
+                console.error("Error deleting PurchaseOrder in supplier service:", err);
+            }
+        }
+
+        return null;
+    }
+
     // UPDATE TRANSACTION STATUS
     async updateTransactionStatus(supplierId, transactionId, status) {
         const mongoose = require("mongoose");
