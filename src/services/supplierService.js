@@ -144,6 +144,13 @@ class SupplierService {
 
         if (transactionData.status === "Delivered") {
             supplier.totalSpend = (supplier.totalSpend || 0) + Number(transactionData.amount || 0);
+            if (transactionData.productId) {
+                await this.updateWarehouseStockHelper(
+                    transactionData.productId,
+                    transactionData.itemsCount,
+                    transactionData.id
+                );
+            }
         }
 
         const total = supplier.transactions.length;
@@ -175,7 +182,7 @@ class SupplierService {
     // GET PROCUREMENT HISTORY
     async getProcurementHistory(id) {
         const PurchaseOrder = require("../models/PurchaseOrder");
-        const supplier = await Supplier.findById(id);
+        const supplier = await Supplier.findById(id).populate("transactions.productId");
         if (!supplier) return null;
 
         const manualTxns = (supplier.transactions || []).map(t => ({
@@ -184,7 +191,10 @@ class SupplierService {
             itemsCount: t.itemsCount,
             amount: t.amount,
             status: t.status,
-            type: "Manual"
+            type: "Manual",
+            productId: t.productId?._id || t.productId,
+            productName: t.productId?.name || null,
+            branchId: t.branchId
         }));
 
         const pos = await PurchaseOrder.find({
@@ -424,8 +434,25 @@ class SupplierService {
                 const amount = Number(supplier.transactions[tIdx].amount || 0);
                 if (oldStatus !== "Delivered" && status === "Delivered") {
                     supplier.totalSpend = (supplier.totalSpend || 0) + amount;
+                    const txn = supplier.transactions[tIdx];
+                    if (txn.productId) {
+                        await this.updateWarehouseStockHelper(
+                            txn.productId,
+                            txn.itemsCount,
+                            txn.id
+                        );
+                    }
                 } else if (oldStatus === "Delivered" && status !== "Delivered") {
                     supplier.totalSpend = Math.max(0, (supplier.totalSpend || 0) - amount);
+                    const txn = supplier.transactions[tIdx];
+                    if (txn.productId) {
+                        await this.updateWarehouseStockHelper(
+                            txn.productId,
+                            -txn.itemsCount,
+                            txn.id,
+                            true
+                        );
+                    }
                 }
 
                 const total = supplier.transactions.length;
@@ -469,8 +496,32 @@ class SupplierService {
                     if (status === "Delivered") poStatus = "Received";
                     else if (status === "Cancelled") poStatus = "Rejected";
                     
+                    const oldPoStatus = po.status;
                     po.status = poStatus;
                     await po.save();
+
+                    if (oldPoStatus !== "Received" && poStatus === "Received") {
+                        for (const item of po.items) {
+                            if (item.product) {
+                                await this.updateWarehouseStockHelper(
+                                    item.product,
+                                    item.quantity,
+                                    po.poNumber || po._id.toString()
+                                );
+                            }
+                        }
+                    } else if (oldPoStatus === "Received" && poStatus !== "Received") {
+                        for (const item of po.items) {
+                            if (item.product) {
+                                await this.updateWarehouseStockHelper(
+                                    item.product,
+                                    -item.quantity,
+                                    po.poNumber || po._id.toString(),
+                                    true
+                                );
+                            }
+                        }
+                    }
                     return { type: "po", po };
                 }
             } catch (err) {
@@ -478,6 +529,77 @@ class SupplierService {
             }
         }
         return null;
+    }
+
+    async updateWarehouseStockHelper(productId, qtyChange, transactionId, isReduction = false) {
+        const Warehouse = require("../models/Warehouse");
+        const WarehouseZone = require("../models/WarehouseZone");
+        const WarehouseStock = require("../models/WarehouseStock");
+        const WarehouseTransaction = require("../models/WarehouseTransaction");
+        const mongoose = require("mongoose");
+
+        try {
+            let warehouse = await Warehouse.findOne({ isMain: true, isActive: true });
+            if (!warehouse) {
+                warehouse = await Warehouse.findOne({ isActive: true });
+            }
+            if (!warehouse) {
+                console.error("No active warehouse found to update stock.");
+                return;
+            }
+
+            let zone = await WarehouseZone.findOne({ warehouse: warehouse._id, isActive: true });
+            if (!zone) {
+                zone = await WarehouseZone.create({
+                    warehouse: warehouse._id,
+                    zoneName: "Default Zone",
+                    zoneCode: "DEFAULT",
+                    capacity: 10000,
+                    currentStock: 0,
+                    isActive: true
+                });
+            }
+
+            const changeAmount = Number(qtyChange);
+            if (!changeAmount || isNaN(changeAmount)) return;
+
+            let stock = await WarehouseStock.findOne({
+                warehouse: warehouse._id,
+                zone: zone._id,
+                product: productId
+            });
+
+            if (stock) {
+                stock.quantity = Math.max(0, stock.quantity + changeAmount);
+                await stock.save();
+            } else if (changeAmount > 0) {
+                stock = await WarehouseStock.create({
+                    warehouse: warehouse._id,
+                    zone: zone._id,
+                    product: productId,
+                    quantity: changeAmount
+                });
+            }
+
+            zone.currentStock = Math.max(0, zone.currentStock + changeAmount);
+            await zone.save();
+
+            await WarehouseTransaction.create({
+                warehouse: warehouse._id,
+                zone: zone._id,
+                product: productId,
+                type: changeAmount < 0 ? "OUT" : "IN",
+                quantity: Math.abs(changeAmount),
+                reference: transactionId,
+                note: isReduction 
+                    ? `Supplier transaction reverted/cancelled: ${transactionId}`
+                    : `Supplier restock order delivered: ${transactionId}`
+            });
+
+            console.log(`Warehouse stock updated for product ${productId}: changed by ${changeAmount} in zone ${zone.zoneName} (${warehouse.name})`);
+        } catch (error) {
+            console.error("Error updating warehouse stock from supplier transaction:", error);
+        }
     }
 }
 
