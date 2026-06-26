@@ -48,7 +48,7 @@ const employeeSchema = new mongoose.Schema(
 
     performanceScore: {
         type: Number,
-        default: 4.0
+        default: 0.0
     },
 
     workingStatus: {
