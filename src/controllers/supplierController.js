@@ -178,7 +178,32 @@ exports.updateTransactionStatus = async (req, res, next) => {
 };
 
 
-// GET PROCUREMENT HISTORY
+// DELETE TRANSACTION (only if Cancelled)
+exports.deleteTransaction = async (req, res, next) => {
+    try {
+        const { id, txnId } = req.params;
+        const result = await supplierService.deleteTransaction(id, txnId);
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: "Supplier or transaction not found"
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: "Cancelled transaction deleted successfully"
+        });
+    } catch (err) {
+        if (err.message && err.message.toLowerCase().includes("cancelled")) {
+            return res.status(403).json({ success: false, message: err.message });
+        }
+        next(err);
+    }
+};
+
+
 exports.getProcurementHistory = async (req, res, next) => {
     try {
         const { id } = req.params;

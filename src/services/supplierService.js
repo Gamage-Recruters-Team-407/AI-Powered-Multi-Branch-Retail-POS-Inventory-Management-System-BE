@@ -599,6 +599,58 @@ class SupplierService {
         return null;
     }
 
+    async deleteTransaction(supplierId, transactionId) {
+        const mongoose = require("mongoose");
+        const supplier = await Supplier.findById(supplierId);
+        if (!supplier) return null;
+
+        // 1. Try manual transactions embedded in supplier doc
+        if (supplier.transactions) {
+            const tIdx = supplier.transactions.findIndex(
+                t => t.id === transactionId || (t._id && t._id.toString() === transactionId)
+            );
+            if (tIdx !== -1) {
+                const txn = supplier.transactions[tIdx];
+                if (txn.status !== "Cancelled") {
+                    throw new Error("Only cancelled transactions can be deleted.");
+                }
+                supplier.transactions.splice(tIdx, 1);
+
+                // Recalculate performance metrics after removal
+                const total = supplier.transactions.length;
+                const delivered = supplier.transactions.filter(t => t.status === "Delivered").length;
+                const cancelled = supplier.transactions.filter(t => t.status === "Cancelled").length;
+                supplier.performance.returnRate = total > 0 ? Number(((cancelled / total) * 100).toFixed(2)) : 0.0;
+                supplier.performance.onTimeDelivery = total > 0 ? Number(((delivered / total) * 100).toFixed(2)) : 95;
+
+                await supplier.save();
+                return { type: "manual", deleted: true };
+            }
+        }
+
+        // 2. Try PurchaseOrder
+        try {
+            const PurchaseOrder = require("../models/PurchaseOrder");
+            let po = await PurchaseOrder.findOne({ poNumber: transactionId });
+            if (!po && mongoose.Types.ObjectId.isValid(transactionId)) {
+                po = await PurchaseOrder.findById(transactionId);
+            }
+            if (po) {
+                const cancelledStatuses = ["Cancelled", "CANCELLED", "Rejected", "REJECTED"];
+                if (!cancelledStatuses.includes(po.status)) {
+                    throw new Error("Only cancelled purchase orders can be deleted.");
+                }
+                await po.deleteOne();
+                return { type: "po", deleted: true };
+            }
+        } catch (err) {
+            if (err.message.includes("cancelled")) throw err;
+            console.error("Error deleting PurchaseOrder in supplier service:", err);
+        }
+
+        return null;
+    }
+
     async updateWarehouseStockHelper(productId, qtyChange, transactionId, isReduction = false) {
         const Warehouse = require("../models/Warehouse");
         const WarehouseZone = require("../models/WarehouseZone");
