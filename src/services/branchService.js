@@ -2,6 +2,7 @@ const Branch = require("../models/Branch.js");
 const { isMongoConnected } = require("../middleware/requireMongoConnection");
 
 const Inventory = require("../models/Inventory.js");
+const Product = require("../models/Product.js");
 const Sale = require("../models/Sale.js");
 const Employee = require("../models/User.js");
 const systemEvents = require("../events/eventBus.js");
@@ -21,7 +22,30 @@ const EMPLOYEE_ROLES = [
 // CREATE BRANCH
 // ===============================
 const createBranch = async (data) => {
-  return await Branch.create(data);
+  const branch = await Branch.create(data);
+
+  // Auto-seed inventory records for every existing active product
+  try {
+    const products = await Product.find({ isActive: { $ne: false } }).select("_id");
+    if (products.length > 0) {
+      const inventoryDocs = products.map((p) => ({
+        product: p._id,
+        branch: branch._id,
+        quantity: 0,
+        reservedStock: 0,
+        lowStockAlert: false,
+      }));
+      await Inventory.insertMany(inventoryDocs, { ordered: false });
+      console.log(
+        `[Branch Created] Seeded ${inventoryDocs.length} inventory records for new branch "${branch.name}"`
+      );
+    }
+  } catch (seedErr) {
+    // Non-fatal: log but don't block the branch creation response
+    console.warn(`[Branch Created] Inventory seeding failed for branch "${branch.name}":`, seedErr.message);
+  }
+
+  return branch;
 };
 
 // ===============================
