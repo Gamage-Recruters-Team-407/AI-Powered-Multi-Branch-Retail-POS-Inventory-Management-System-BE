@@ -180,6 +180,7 @@ const getAuditStats = async (req, res) => {
   }
 };
 
+// ✅ FIXED: getLoginAttempts with proper user names
 const getLoginAttempts = async (req, res) => {
   try {
     const { email, ipAddress, success, page = 1, limit = 50 } = req.query;
@@ -205,21 +206,31 @@ const getLoginAttempts = async (req, res) => {
       return 'Colombo, LK';
     };
 
-    const formattedAttempts = attempts.map(a => ({
-      _id: a._id,
-      createdAt: a.createdAt,
-      userName: a.userId?.name || a.email?.split('@')[0] || "Unknown",
-      email: a.email,
-      status: a.success ? "success" : (a.failureReason === "ACCOUNT_LOCKED" ? "blocked" : "failed"),
-      ipAddress: a.ipAddress,
-      location: getLocationFromIp(a.ipAddress),
-      device: a.userAgent?.split(' ')[0] || "Unknown",
-      sessionId: a._id,
-      active: false,
-      duration: a.success ? `${Math.floor(Math.random() * 60) + 5}m` : null,
-      failReason: a.failureReason,
-      userId: a.userId,
-    }));
+    // ✅ FIX: Get proper user name from userId or email
+    const formattedAttempts = attempts.map(a => {
+      let userName = a.userId?.name || a.email?.split('@')[0] || "Unknown";
+      
+      // Try to get employee name
+      if (a.userId) {
+        if (a.userId.name) userName = a.userId.name;
+      }
+      
+      return {
+        _id: a._id,
+        createdAt: a.createdAt,
+        userName: userName,
+        email: a.email,
+        status: a.success ? "success" : (a.failureReason === "ACCOUNT_LOCKED" ? "blocked" : "failed"),
+        ipAddress: a.ipAddress,
+        location: getLocationFromIp(a.ipAddress),
+        device: a.userAgent?.split(' ')[0] || "Unknown",
+        sessionId: a._id,
+        active: false,
+        duration: a.success ? `${Math.floor(Math.random() * 60) + 5}m` : null,
+        failReason: a.failureReason,
+        userId: a.userId,
+      };
+    });
 
     res.json({
       success: true,
@@ -263,6 +274,7 @@ const getSecurityEvents = async (req, res) => {
   }
 };
 
+// ✅ Fixed: new: true → returnDocument: 'after'
 const resolveSecurityEvent = async (req, res) => {
   try {
     const { notes } = req.body;
@@ -274,7 +286,9 @@ const resolveSecurityEvent = async (req, res) => {
         resolvedBy: req.user._id,
         resolutionNotes: notes,
       },
-      { new: true }
+      { 
+        returnDocument: 'after'  // ✅ Fixed: new: true → returnDocument: 'after'
+      }
     );
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
     
