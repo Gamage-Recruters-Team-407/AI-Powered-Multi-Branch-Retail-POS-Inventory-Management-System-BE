@@ -104,14 +104,14 @@ const searchBranches = async (q) => {
 // BRANCH INVENTORY
 // ===============================
 const getBranchInventory = async (branchId) => {
-  return await Inventory.find({ branch: branchId }).populate("product");
+  return await Inventory.find({ branch: branchId })
+    .populate("product")
+    .sort({ createdAt: -1 });
 };
 
 // ===============================
 // BRANCH SALES
 // ===============================
-// 
-
 const getBranchSales = async (branchId) => {
   return await Sale.find({ branch: branchId })
     .populate("cashier", "firstName lastName email")
@@ -125,7 +125,7 @@ const getBranchEmployees = async (branchId) => {
   const employees = await Employee.find({
     branch: branchId,
     role: { $in: EMPLOYEE_ROLES },
-  });
+  }).sort({ createdAt: -1 });
 
   return employees.map((emp) => ({
     _id: emp._id,
