@@ -74,19 +74,68 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
         .populate('branch')
         .exec();
 
-    const recommendations = [];
+    if (!inventories.length) return [];
 
+    // 1. Fetch all unique suppliers in bulk
+    const supplierIds = [...new Set(
+        inventories
+            .map(inv => inv.product?.supplier)
+            .filter(s => s && mongoose.Types.ObjectId.isValid(s))
+            .map(s => s.toString())
+    )];
+    
+    const suppliers = await Supplier.find({ _id: { $in: supplierIds } }).lean();
+    const supplierMap = {};
+    suppliers.forEach(s => supplierMap[s._id.toString()] = s);
+
+    // 2. Fetch sales consumption for all product/branch pairs in bulk
+    const since = new Date(Date.now() - Math.max(days, 1) * DAY_MS);
+    const productIds = inventories.map(inv => inv.product?._id).filter(Boolean);
+    const branchIds = inventories.map(inv => inv.branch?._id).filter(Boolean);
+
+    const aggregation = await StockMovement.aggregate([
+        { 
+            $match: {
+                product: { $in: productIds },
+                branch: { $in: branchIds },
+                type: 'sale',
+                createdAt: { $gte: since }
+            } 
+        },
+        {
+            $group: {
+                _id: { product: "$product", branch: "$branch" },
+                totalSold: {
+                    $sum: {
+                        $abs: '$quantityChange'
+                    }
+                }
+            }
+        }
+    ]);
+
+    const salesMap = {};
+    aggregation.forEach(item => {
+        const key = `${item._id.product.toString()}_${item._id.branch.toString()}`;
+        salesMap[key] = item.totalSold;
+    });
+
+    const recommendationsData = [];
+    const bulkOps = [];
+
+    // 3. Process each inventory item
     for (const inventory of inventories) {
         if (!inventory.product || !inventory.branch) continue;
 
         const product = inventory.product;
         const branch = inventory.branch;
         const currentStock = normalizeQuantity(inventory.quantity);
-        const supplier = product.supplier && mongoose.Types.ObjectId.isValid(product.supplier)
-            ? await Supplier.findById(product.supplier).lean()
-            : null;
+        const supplier = product.supplier ? supplierMap[product.supplier.toString()] : null;
 
-        const { totalSold, avgDailySales } = await getSalesConsumption(product._id, branch._id, days);
+        const key = `${product._id.toString()}_${branch._id.toString()}`;
+        const totalSold = normalizeQuantity(salesMap[key]);
+        const avgDailySales = totalSold / Math.max(days, 1);
+
         const reorderPoint = calculateReorderPoint(product, avgDailySales);
         const recommendedQuantity = calculateRecommendedQuantity(currentStock, reorderPoint, avgDailySales);
         const lowStock = currentStock <= reorderPoint;
@@ -96,50 +145,92 @@ const generateReorderRecommendations = async ({ branchId = null, limit = 20, day
             continue;
         }
 
-        const persistedRecommendation = await ReorderRecommendation.findOneAndUpdate(
-            { product: product._id, branch: branch._id },
-            {
-                product: product._id,
-                branch: branch._id,
-                recommendedQuantity,
-                currentStock,
-                reorderPoint,
-                status: lowStock ? 'PENDING' : 'PENDING'
-            },
-            {
-                upsert: true,
-                returnDocument: 'after',
-                setDefaultsOnInsert: true
-            }
-        ).lean();
+        const status = 'PENDING';
 
-        recommendations.push({
-            id: persistedRecommendation._id,
-            product: {
-                id: product._id,
-                name: product.name,
-                barcode: product.barcode,
-                unit: product.unit,
-                costPrice: normalizeQuantity(product.costPrice),
-                supplierName: supplier?.companyName || null
-            },
-            supplierName: supplier?.companyName || null,
-            branch: {
-                id: branch._id,
-                name: branch.name || branch.location || 'Branch'
-            },
+        bulkOps.push({
+            updateOne: {
+                filter: { product: product._id, branch: branch._id },
+                update: {
+                    $set: {
+                        product: product._id,
+                        branch: branch._id,
+                        recommendedQuantity,
+                        currentStock,
+                        reorderPoint,
+                        status
+                    }
+                },
+                upsert: true
+            }
+        });
+
+        recommendationsData.push({
+            product,
+            branch,
+            supplier,
             currentStock,
             reorderPoint,
             recommendedQuantity,
-            avgDailySales: Number(avgDailySales.toFixed(2)),
+            avgDailySales,
             totalSold,
             lowStock,
             urgency,
-            status: persistedRecommendation.status,
-            createdAt: persistedRecommendation.createdAt,
-            updatedAt: persistedRecommendation.updatedAt
+            status
         });
     }
+
+    // 4. Bulk write updates
+    if (bulkOps.length > 0) {
+        await ReorderRecommendation.bulkWrite(bulkOps);
+    }
+
+    // 5. Re-fetch persisted recommendations to get _ids and timestamps
+    const productBranchPairs = recommendationsData.map(r => ({ product: r.product._id, branch: r.branch._id }));
+    let persistedMap = {};
+    
+    if (productBranchPairs.length > 0) {
+        const persistedRecommendations = await ReorderRecommendation.find({
+            $or: productBranchPairs
+        }).lean();
+        
+        persistedRecommendations.forEach(pr => {
+            const key = `${pr.product.toString()}_${pr.branch.toString()}`;
+            persistedMap[key] = pr;
+        });
+    }
+
+    // 6. Map to final recommendations payload
+    const recommendations = recommendationsData.map(data => {
+        const key = `${data.product._id.toString()}_${data.branch._id.toString()}`;
+        const persisted = persistedMap[key] || {};
+        
+        return {
+            id: persisted._id,
+            product: {
+                id: data.product._id,
+                name: data.product.name,
+                barcode: data.product.barcode,
+                unit: data.product.unit,
+                costPrice: normalizeQuantity(data.product.costPrice),
+                supplierName: data.supplier?.companyName || null
+            },
+            supplierName: data.supplier?.companyName || null,
+            branch: {
+                id: data.branch._id,
+                name: data.branch.name || data.branch.location || 'Branch'
+            },
+            currentStock: data.currentStock,
+            reorderPoint: data.reorderPoint,
+            recommendedQuantity: data.recommendedQuantity,
+            avgDailySales: Number(data.avgDailySales.toFixed(2)),
+            totalSold: data.totalSold,
+            lowStock: data.lowStock,
+            urgency: data.urgency,
+            status: data.status || persisted.status,
+            createdAt: persisted.createdAt,
+            updatedAt: persisted.updatedAt
+        };
+    });
 
     recommendations.sort((a, b) => {
         const rating = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 };
