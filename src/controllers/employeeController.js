@@ -272,20 +272,11 @@ const addEmployee = async (req, res) => {
             joiningDate: hireDate || new Date(),
             photo: imageUrl,
             status: "Active",
-            performanceScore: 4.0,
+            performanceScore: 0.0,
             workingStatus: "Off Duty"
         });
 
-        // Initialize default performance metric record
-        const currentMonth = new Date().toISOString().substring(0, 7);
-        await EmployeePerformance.create({
-            employeeId: newEmployee._id.toString(),
-            punctuality: 100,
-            salesAchievement: 100,
-            customerRating: 4.0,
-            taskCompletion: 100,
-            date: currentMonth
-        });
+
 
         // ✅ Add Audit Log
         await AuditService.log({
@@ -922,9 +913,9 @@ const logPerformanceMetric = async (req, res) => {
                 const currScore = (punctuality + salesAchievement + (customerRating * 20) + taskCompletion) / 4 / 20;
                 return acc + currScore;
             }, 0);
-            const avgScore = allPerfs.length > 0 ? (totalScore / allPerfs.length) : 4.0;
+            const avgScore = allPerfs.length > 0 ? (totalScore / allPerfs.length) : 0.0;
             
-            emp.performanceScore = isNaN(avgScore) ? 4.0 : parseFloat(avgScore.toFixed(2));
+            emp.performanceScore = isNaN(avgScore) ? 0.0 : parseFloat(avgScore.toFixed(2));
             await emp.save();
         }
 
