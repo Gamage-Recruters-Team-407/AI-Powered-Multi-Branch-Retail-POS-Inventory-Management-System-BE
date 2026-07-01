@@ -1,6 +1,6 @@
 const AuditLog = require("../models/AuditLog");
 const SecurityEvent = require("../models/SecurityEvent");
-const Employee = require("../models/Employee");
+const Employee = require("../models/User");
 const User = require("../models/User");
 
 const AuditService = {
@@ -34,7 +34,7 @@ const AuditService = {
 
       const getEmployeeDetails = async (userId) => {
         try {
-          const employee = await Employee.findOne({ user: userId }).populate('branch', 'name');
+          const employee = await Employee.findById(userId).populate('branch', 'name');
           if (employee) {
             const empName = `${employee.firstName || ""} ${employee.lastName || ""}`.trim();
             return {
@@ -42,7 +42,7 @@ const AuditService = {
               userRole: employee.role || null,
               userEmail: employee.email || null,
               userBranch: employee.branch || null,
-              userBranchName: employee.branchName || null,
+              userBranchName: employee.branch ? employee.branch.name : null,
             };
           }
           return null;

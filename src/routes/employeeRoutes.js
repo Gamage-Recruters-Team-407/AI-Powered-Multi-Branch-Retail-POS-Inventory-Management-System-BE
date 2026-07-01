@@ -20,7 +20,7 @@ const {
 
 // --- EMPLOYEE CRUD ENDPOINTS ---
 router.get("/", getAllEmployees);
-router.post("/", upload.single("photo"), addEmployee);
+router.post("/", addEmployee);
 router.get("/schedules", getSchedules);
 router.post("/schedules", saveSchedule);
 
@@ -33,7 +33,7 @@ router.post("/attendance", logAttendance);
 router.get("/performance", getPerformanceMetrics);
 router.post("/performance", logPerformanceMetric);
 router.get("/:id", getEmployeeById);
-router.put("/:id", upload.single("photo"), updateEmployee);
+router.put("/:id", updateEmployee);
 router.delete("/:id", deleteEmployee);
 
 module.exports = router;

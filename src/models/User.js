@@ -41,6 +41,25 @@ const userSchema = new mongoose.Schema(
       default: true,
     },
 
+    salary: {
+      type: Number,
+      default: 0
+    },
+
+    joiningDate: {
+      type: Date
+    },
+
+    workingStatus: {
+      type: String,
+      default: "Off Duty"
+    },
+
+    performanceScore: {
+      type: Number,
+      default: 0.0
+    },
+
     // Password Reset fields
     resetPasswordToken:  String,
     resetPasswordExpire: Date,
