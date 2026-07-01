@@ -39,7 +39,7 @@ const getUserById = async (req, res) => {
 // @access  Private/Admin
 const createUser = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, role, branch } = req.body;
+    const { firstName, lastName, email, password, phone, address, role, branch } = req.body;
 
     // ✅ Required fields check
     if (!firstName || !lastName || !email || !password) {
@@ -61,6 +61,7 @@ const createUser = async (req, res) => {
       email,
       password,
       phone,
+      address,
       role,
       branch
     });
@@ -72,6 +73,8 @@ const createUser = async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        phone: user.phone,
+        address: user.address,
         role: user.role,
         isActive: user.isActive
       }
@@ -90,7 +93,7 @@ const updateUser = async (req, res) => {
     if (!user)
       return res.status(404).json({ success: false, message: 'User not found' });
 
-    const { firstName, lastName, phone, role, branch, isActive } = req.body;
+    const { firstName, lastName, email, phone, address, role, branch, isActive } = req.body;
 
     // ✅ findByIdAndUpdate use කරනවා — pre("save") trigger වෙලා password re-hash වෙන්නේ නෑ
     const updatedUser = await User.findByIdAndUpdate(
@@ -98,12 +101,14 @@ const updateUser = async (req, res) => {
       {
         ...(firstName && { firstName }),
         ...(lastName && { lastName }),
+        ...(email && { email }),
         ...(phone && { phone }),
+        ...(address && { address }),
         ...(role && { role }),
         ...(branch && { branch }),
         ...(isActive !== undefined && { isActive })
       },
-      { returnDocument: 'after', runValidators: true }
+      { new: true, runValidators: true }
     ).select('-password');
 
     res.json({ success: true, data: updatedUser });
@@ -127,6 +132,7 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 // @desc    Get all managers for dropdowns
 const getManagers = async (req, res) => {
   try {
