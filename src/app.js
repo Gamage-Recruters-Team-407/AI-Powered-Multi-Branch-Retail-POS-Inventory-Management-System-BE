@@ -54,6 +54,34 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Ensure MongoDB is connected before handling any API request ───────────
+// On Vercel serverless, server.listen() callback may not fire before requests
+// arrive, so we lazily connect here on the first request if not already connected.
+const mongoose = require('mongoose');
+const connectDB = require('./config/db');
+let dbConnecting = null;
+
+app.use(async (req, res, next) => {
+  // Skip DB check for health/root endpoints
+  if (req.path === '/' || req.path === '/health' || req.path === '/api/health') {
+    return next();
+  }
+  // If already connected, proceed immediately
+  if (mongoose.connection.readyState === 1) {
+    return next();
+  }
+  // If a connection attempt is already in progress, wait for it
+  if (!dbConnecting) {
+    dbConnecting = connectDB().finally(() => { dbConnecting = null; });
+  }
+  try {
+    await dbConnecting;
+    next();
+  } catch (err) {
+    res.status(503).json({ error: 'Database connection unavailable' });
+  }
+});
+
 // ── 1. Global IP Guard ────────────────────────────────────────────────────
 // Blacklist කරපු IP ලිස්ට් එකෙන් එන හොර Requests රූට්ස් වලට යන්න කලින්ම බ්ලොක් කරයි
 app.use(ipGuardMiddleware);
