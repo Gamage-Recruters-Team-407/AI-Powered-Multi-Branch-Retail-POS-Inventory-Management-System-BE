@@ -17,7 +17,12 @@ const branchSchema = new mongoose.Schema(
 
     manager: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "Employee"
+        ref: "User"
+    },
+
+    settings: {
+        type: Object,
+        default: {}
     },
 
     isActive: {
