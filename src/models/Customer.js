@@ -10,7 +10,27 @@ const customerSchema = new mongoose.Schema(
         unique: true
     },
 
-    phone: String,
+    phone: {
+        type: String,
+        unique: true
+    },
+
+    gender: {
+        type: String,
+        enum: ["MALE", "FEMALE", "OTHER"]
+    },
+
+    customerType: {
+        type: String,
+        enum: ["BRONZE", "SILVER", "GOLD", "PLATINUM"],
+        default: "BRONZE"
+    },
+
+    status: {
+        type: String,
+        enum: ["ACTIVE", "INACTIVE"],
+        default: "ACTIVE"
+    },
 
     loyaltyPoints: {
         type: Number,
