@@ -42,7 +42,13 @@ const app = express();
 
 // Middleware & CORS settings (ඔයාගේ CLIENT_URL fallback එක සමඟ)
 app.use(cors({
-  origin: process.env.CLIENT_URL || process.env.FRONTEND_URL || '*',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.) or any localhost / vercel app
+    if (!origin || origin.includes('localhost') || origin.endsWith('.vercel.app') || origin === process.env.CLIENT_URL || origin === process.env.FRONTEND_URL) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Fallback allow for demo environments
+  },
   credentials: true,
 }));
 app.use(express.json());
