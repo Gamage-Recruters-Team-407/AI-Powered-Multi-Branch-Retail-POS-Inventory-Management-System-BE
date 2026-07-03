@@ -1,6 +1,6 @@
 const SecurityPolicy = require("../models/SecurityPolicy");
 const LoginAttempt = require("../models/LoginAttempt");
-const AuditLog = require("../models/AuditLog");
+const AuditLog = require("../models/Auditlog");
 const SecurityEvent = require("../models/SecurityEvent");
 const LoginSession = require("../models/LoginSession");
 const AuditService = require("./auditService");

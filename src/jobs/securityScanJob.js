@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const SecurityService = require("../services/securityService");
 const AuditService = require("../services/auditService");
-const AuditLog = require("../models/AuditLog");
+const AuditLog = require("../models/Auditlog");
 
 /**
  * Security scan job.
