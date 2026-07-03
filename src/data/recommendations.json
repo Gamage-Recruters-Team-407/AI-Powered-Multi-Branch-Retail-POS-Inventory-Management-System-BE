@@ -1,0 +1,1912 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-02T17:14:43.671396",
+    "version": "1.0",
+    "dataSummary": {
+      "products": 80,
+      "sales": 200,
+      "inventory": 80,
+      "customers": 10
+    }
+  },
+  "salesRecommendations": [
+    {
+      "productId": "prod_063",
+      "totalSold": 110,
+      "name": "Whiteboard Marker",
+      "price": 2.99,
+      "categoryId": "cat_006",
+      "brand": "Expo",
+      "rank": 1,
+      "revenue": 328.90000000000003
+    },
+    {
+      "productId": "prod_059",
+      "totalSold": 55,
+      "name": "A4 Paper 500 sheets",
+      "price": 7.99,
+      "categoryId": "cat_009",
+      "brand": "Double A",
+      "rank": 2,
+      "revenue": 439.45
+    },
+    {
+      "productId": "prod_041",
+      "totalSold": 20,
+      "name": "USB 3.0 Flash Drive 64GB",
+      "price": 19.99,
+      "categoryId": "cat_001",
+      "brand": "SanDisk",
+      "rank": 3,
+      "revenue": 399.79999999999995
+    },
+    {
+      "productId": "prod_001",
+      "totalSold": 11,
+      "name": "Wireless Mouse",
+      "price": 29.99,
+      "categoryId": "cat_001",
+      "brand": "Logitech",
+      "rank": 4,
+      "revenue": 329.89
+    },
+    {
+      "productId": "prod_013",
+      "totalSold": 11,
+      "name": "Coffee Beans",
+      "price": 15.99,
+      "categoryId": "cat_004",
+      "brand": "Starbucks",
+      "rank": 5,
+      "revenue": 175.89000000000001
+    },
+    {
+      "productId": "prod_011",
+      "totalSold": 10,
+      "name": "Coffee Mug",
+      "price": 12.99,
+      "categoryId": "cat_004",
+      "brand": "Starbucks",
+      "rank": 6,
+      "revenue": 129.9
+    },
+    {
+      "productId": "prod_002",
+      "totalSold": 10,
+      "name": "USB-C Cable",
+      "price": 9.99,
+      "categoryId": "cat_001",
+      "brand": "Anker",
+      "rank": 7,
+      "revenue": 99.9
+    },
+    {
+      "productId": "prod_047",
+      "totalSold": 8,
+      "name": "Ethernet Cable 3m",
+      "price": 9.99,
+      "categoryId": "cat_001",
+      "brand": "Belkin",
+      "rank": 8,
+      "revenue": 79.92
+    },
+    {
+      "productId": "prod_049",
+      "totalSold": 8,
+      "name": "HDMI Cable 2m",
+      "price": 12.99,
+      "categoryId": "cat_001",
+      "brand": "Belkin",
+      "rank": 9,
+      "revenue": 103.92
+    },
+    {
+      "productId": "prod_014",
+      "totalSold": 7,
+      "name": "Water Bottle",
+      "price": 19.99,
+      "categoryId": "cat_005",
+      "brand": "Contigo",
+      "rank": 10,
+      "revenue": 139.92999999999998
+    },
+    {
+      "productId": "prod_080",
+      "totalSold": 7,
+      "name": "Smart Bulb",
+      "price": 19.99,
+      "categoryId": "cat_007",
+      "brand": "Philips",
+      "rank": 11,
+      "revenue": 139.92999999999998
+    },
+    {
+      "productId": "prod_045",
+      "totalSold": 7,
+      "name": "Router WiFi 6",
+      "price": 89.99,
+      "categoryId": "cat_001",
+      "brand": "TP-Link",
+      "rank": 12,
+      "revenue": 629.93
+    },
+    {
+      "productId": "prod_025",
+      "totalSold": 6,
+      "name": "SSD 1TB",
+      "price": 109.99,
+      "categoryId": "cat_001",
+      "brand": "Samsung",
+      "rank": 13,
+      "revenue": 659.9399999999999
+    },
+    {
+      "productId": "prod_016",
+      "totalSold": 6,
+      "name": "Pen Set",
+      "price": 14.99,
+      "categoryId": "cat_006",
+      "brand": "Pilot",
+      "rank": 14,
+      "revenue": 89.94
+    },
+    {
+      "productId": "prod_004",
+      "totalSold": 6,
+      "name": "HDMI Cable",
+      "price": 12.99,
+      "categoryId": "cat_001",
+      "brand": "Belkin",
+      "rank": 15,
+      "revenue": 77.94
+    },
+    {
+      "productId": "prod_005",
+      "totalSold": 6,
+      "name": "Power Bank",
+      "price": 49.99,
+      "categoryId": "cat_001",
+      "brand": "Samsung",
+      "rank": 16,
+      "revenue": 299.94
+    },
+    {
+      "productId": "prod_062",
+      "totalSold": 6,
+      "name": "Staples Pack",
+      "price": 4.99,
+      "categoryId": "cat_006",
+      "brand": "Swingline",
+      "rank": 17,
+      "revenue": 29.94
+    },
+    {
+      "productId": "prod_073",
+      "totalSold": 5,
+      "name": "Standing Desk",
+      "price": 399.99,
+      "categoryId": "cat_007",
+      "brand": "IKEA",
+      "rank": 18,
+      "revenue": 1999.95
+    },
+    {
+      "productId": "prod_077",
+      "totalSold": 5,
+      "name": "Desk Lamp LED",
+      "price": 34.99,
+      "categoryId": "cat_007",
+      "brand": "Philips",
+      "rank": 19,
+      "revenue": 174.95000000000002
+    },
+    {
+      "productId": "prod_069",
+      "totalSold": 5,
+      "name": "Filing Cabinet",
+      "price": 149.99,
+      "categoryId": "cat_007",
+      "brand": "IKEA",
+      "rank": 20,
+      "revenue": 749.95
+    }
+  ],
+  "inventoryRecommendations": [
+    {
+      "productId": "prod_006",
+      "name": "Bluetooth Speaker",
+      "quantity": 2,
+      "reorderLevel": 8,
+      "urgency": "critical",
+      "suggestedOrderQty": 14
+    },
+    {
+      "productId": "prod_018",
+      "name": "Office Chair",
+      "quantity": 2,
+      "reorderLevel": 5,
+      "urgency": "warning",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_073",
+      "name": "Standing Desk",
+      "quantity": 2,
+      "reorderLevel": 3,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_003",
+      "name": "Laptop Stand",
+      "quantity": 3,
+      "reorderLevel": 15,
+      "urgency": "critical",
+      "suggestedOrderQty": 27
+    },
+    {
+      "productId": "prod_035",
+      "name": "Smart Watch",
+      "quantity": 3,
+      "reorderLevel": 5,
+      "urgency": "warning",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_020",
+      "name": "Wireless Earbuds",
+      "quantity": 3,
+      "reorderLevel": 6,
+      "urgency": "warning",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_074",
+      "name": "Office Partition",
+      "quantity": 3,
+      "reorderLevel": 4,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_005",
+      "name": "Power Bank",
+      "quantity": 4,
+      "reorderLevel": 10,
+      "urgency": "warning",
+      "suggestedOrderQty": 16
+    },
+    {
+      "productId": "prod_069",
+      "name": "Filing Cabinet",
+      "quantity": 4,
+      "reorderLevel": 5,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_024",
+      "name": "Monitor 24 Inch",
+      "quantity": 5,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 11
+    },
+    {
+      "productId": "prod_004",
+      "name": "HDMI Cable",
+      "quantity": 5,
+      "reorderLevel": 30,
+      "urgency": "critical",
+      "suggestedOrderQty": 55
+    },
+    {
+      "productId": "prod_012",
+      "name": "French Press",
+      "quantity": 5,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 11
+    },
+    {
+      "productId": "prod_075",
+      "name": "Whiteboard 3x4ft",
+      "quantity": 5,
+      "reorderLevel": 6,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_019",
+      "name": "Monitor Stand",
+      "quantity": 6,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_037",
+      "name": "Tablet 10 Inch",
+      "quantity": 6,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_010",
+      "name": "Wireless Keyboard",
+      "quantity": 6,
+      "reorderLevel": 10,
+      "urgency": "warning",
+      "suggestedOrderQty": 14
+    },
+    {
+      "productId": "prod_070",
+      "name": "Bookshelf",
+      "quantity": 6,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_078",
+      "name": "Floor Lamp",
+      "quantity": 6,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_056",
+      "name": "Laptop Battery",
+      "quantity": 6,
+      "reorderLevel": 8,
+      "urgency": "attention",
+      "suggestedOrderQty": 10
+    },
+    {
+      "productId": "prod_027",
+      "name": "Webcam HD",
+      "quantity": 7,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 13
+    },
+    {
+      "productId": "prod_017",
+      "name": "Desk Lamp",
+      "quantity": 8,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 12
+    },
+    {
+      "productId": "prod_045",
+      "name": "Router WiFi 6",
+      "quantity": 8,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 12
+    },
+    {
+      "productId": "prod_036",
+      "name": "Fitness Tracker",
+      "quantity": 8,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 12
+    },
+    {
+      "productId": "prod_022",
+      "name": "Mechanical Keyboard",
+      "quantity": 8,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 12
+    },
+    {
+      "productId": "prod_076",
+      "name": "Pin Board 2x3ft",
+      "quantity": 8,
+      "reorderLevel": 10,
+      "urgency": "attention",
+      "suggestedOrderQty": 12
+    },
+    {
+      "productId": "prod_007",
+      "name": "Laptop Bag",
+      "quantity": 8,
+      "reorderLevel": 12,
+      "urgency": "attention",
+      "suggestedOrderQty": 16
+    },
+    {
+      "productId": "prod_023",
+      "name": "Gaming Headset",
+      "quantity": 10,
+      "reorderLevel": 12,
+      "urgency": "attention",
+      "suggestedOrderQty": 14
+    },
+    {
+      "productId": "prod_079",
+      "name": "Ceiling Light",
+      "quantity": 10,
+      "reorderLevel": 12,
+      "urgency": "attention",
+      "suggestedOrderQty": 14
+    },
+    {
+      "productId": "prod_034",
+      "name": "Wireless Charger",
+      "quantity": 10,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 20
+    },
+    {
+      "productId": "prod_055",
+      "name": "Laptop Charger 90W",
+      "quantity": 10,
+      "reorderLevel": 12,
+      "urgency": "attention",
+      "suggestedOrderQty": 14
+    },
+    {
+      "productId": "prod_009",
+      "name": "USB Hub",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_030",
+      "name": "Laptop Cooler",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_046",
+      "name": "Network Switch",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_038",
+      "name": "Stylus Pen",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_077",
+      "name": "Desk Lamp LED",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_021",
+      "name": "Gaming Mouse",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_054",
+      "name": "Laptop Charger 65W",
+      "quantity": 12,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 18
+    },
+    {
+      "productId": "prod_026",
+      "name": "External Hard Drive",
+      "quantity": 14,
+      "reorderLevel": 15,
+      "urgency": "attention",
+      "suggestedOrderQty": 16
+    },
+    {
+      "productId": "prod_033",
+      "name": "Charger 65W",
+      "quantity": 15,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 25
+    },
+    {
+      "productId": "prod_025",
+      "name": "SSD 1TB",
+      "quantity": 18,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 22
+    },
+    {
+      "productId": "prod_053",
+      "name": "USB Hub 7 Port",
+      "quantity": 18,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 22
+    },
+    {
+      "productId": "prod_080",
+      "name": "Smart Bulb",
+      "quantity": 18,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 22
+    },
+    {
+      "productId": "prod_015",
+      "name": "Notebook",
+      "quantity": 18,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 22
+    },
+    {
+      "productId": "prod_031",
+      "name": "Desk Mat",
+      "quantity": 18,
+      "reorderLevel": 20,
+      "urgency": "attention",
+      "suggestedOrderQty": 22
+    },
+    {
+      "productId": "prod_014",
+      "name": "Water Bottle",
+      "quantity": 20,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 30
+    },
+    {
+      "productId": "prod_040",
+      "name": "Laptop Sleeve",
+      "quantity": 20,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 30
+    },
+    {
+      "productId": "prod_071",
+      "name": "Desk Drawer Organizer",
+      "quantity": 22,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 28
+    },
+    {
+      "productId": "prod_032",
+      "name": "Phone Stand",
+      "quantity": 22,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 28
+    },
+    {
+      "productId": "prod_058",
+      "name": "Printer Ink Color",
+      "quantity": 22,
+      "reorderLevel": 28,
+      "urgency": "attention",
+      "suggestedOrderQty": 34
+    },
+    {
+      "productId": "prod_052",
+      "name": "USB Hub 4 Port",
+      "quantity": 22,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 28
+    },
+    {
+      "productId": "prod_008",
+      "name": "Screen Protector",
+      "quantity": 25,
+      "reorderLevel": 25,
+      "urgency": "attention",
+      "suggestedOrderQty": 25
+    },
+    {
+      "productId": "prod_057",
+      "name": "Printer Ink Black",
+      "quantity": 25,
+      "reorderLevel": 30,
+      "urgency": "attention",
+      "suggestedOrderQty": 35
+    },
+    {
+      "productId": "prod_028",
+      "name": "Mouse Pad Large",
+      "quantity": 25,
+      "reorderLevel": 30,
+      "urgency": "attention",
+      "suggestedOrderQty": 35
+    },
+    {
+      "productId": "prod_016",
+      "name": "Pen Set",
+      "quantity": 25,
+      "reorderLevel": 30,
+      "urgency": "attention",
+      "suggestedOrderQty": 35
+    },
+    {
+      "productId": "prod_072",
+      "name": "Cable Management Box",
+      "quantity": 28,
+      "reorderLevel": 30,
+      "urgency": "attention",
+      "suggestedOrderQty": 32
+    },
+    {
+      "productId": "prod_013",
+      "name": "Coffee Beans",
+      "quantity": 28,
+      "reorderLevel": 30,
+      "urgency": "attention",
+      "suggestedOrderQty": 32
+    },
+    {
+      "productId": "prod_050",
+      "name": "HDMI Cable 5m",
+      "quantity": 30,
+      "reorderLevel": 35,
+      "urgency": "attention",
+      "suggestedOrderQty": 40
+    },
+    {
+      "productId": "prod_049",
+      "name": "HDMI Cable 2m",
+      "quantity": 35,
+      "reorderLevel": 40,
+      "urgency": "attention",
+      "suggestedOrderQty": 45
+    },
+    {
+      "productId": "prod_061",
+      "name": "Stapler",
+      "quantity": 35,
+      "reorderLevel": 40,
+      "urgency": "attention",
+      "suggestedOrderQty": 45
+    },
+    {
+      "productId": "prod_011",
+      "name": "Coffee Mug",
+      "quantity": 35,
+      "reorderLevel": 40,
+      "urgency": "attention",
+      "suggestedOrderQty": 45
+    },
+    {
+      "productId": "prod_039",
+      "name": "Screen Cleaner Kit",
+      "quantity": 38,
+      "reorderLevel": 40,
+      "urgency": "attention",
+      "suggestedOrderQty": 42
+    },
+    {
+      "productId": "prod_060",
+      "name": "A4 Paper 2000 sheets",
+      "quantity": 42,
+      "reorderLevel": 50,
+      "urgency": "attention",
+      "suggestedOrderQty": 58
+    },
+    {
+      "productId": "prod_066",
+      "name": "Tape Dispenser",
+      "quantity": 45,
+      "reorderLevel": 50,
+      "urgency": "attention",
+      "suggestedOrderQty": 55
+    },
+    {
+      "productId": "prod_029",
+      "name": "Cable Organizer",
+      "quantity": 45,
+      "reorderLevel": 50,
+      "urgency": "attention",
+      "suggestedOrderQty": 55
+    },
+    {
+      "productId": "prod_065",
+      "name": "Scissors",
+      "quantity": 55,
+      "reorderLevel": 60,
+      "urgency": "attention",
+      "suggestedOrderQty": 65
+    },
+    {
+      "productId": "prod_064",
+      "name": "Whiteboard Eraser",
+      "quantity": 70,
+      "reorderLevel": 80,
+      "urgency": "attention",
+      "suggestedOrderQty": 90
+    },
+    {
+      "productId": "prod_067",
+      "name": "Packing Tape",
+      "quantity": 75,
+      "reorderLevel": 80,
+      "urgency": "attention",
+      "suggestedOrderQty": 85
+    },
+    {
+      "productId": "prod_059",
+      "name": "A4 Paper 500 sheets",
+      "quantity": 85,
+      "reorderLevel": 100,
+      "urgency": "attention",
+      "suggestedOrderQty": 115
+    },
+    {
+      "productId": "prod_062",
+      "name": "Staples Pack",
+      "quantity": 90,
+      "reorderLevel": 100,
+      "urgency": "attention",
+      "suggestedOrderQty": 110
+    },
+    {
+      "productId": "prod_068",
+      "name": "Envelope Pack",
+      "quantity": 95,
+      "reorderLevel": 100,
+      "urgency": "attention",
+      "suggestedOrderQty": 105
+    },
+    {
+      "productId": "prod_063",
+      "name": "Whiteboard Marker",
+      "quantity": 150,
+      "reorderLevel": 200,
+      "urgency": "attention",
+      "suggestedOrderQty": 250
+    }
+  ],
+  "customerBehavior": [
+    {
+      "customerId": "cust_001",
+      "customerName": "John Smith",
+      "preferredCategories": [
+        "cat_001",
+        "cat_003",
+        "cat_002"
+      ],
+      "preferredBrands": [
+        "Anker",
+        "Logitech",
+        "Samsung"
+      ],
+      "totalSpent": 1063.79,
+      "avgOrderValue": 106.38,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 450,
+      "totalPurchases": 1250
+    },
+    {
+      "customerId": "cust_002",
+      "customerName": "Sarah Johnson",
+      "preferredCategories": [
+        "cat_002",
+        "cat_003",
+        "cat_001"
+      ],
+      "preferredBrands": [
+        "ErgoTech",
+        "Swisswin",
+        "IKEA"
+      ],
+      "totalSpent": 1573.74,
+      "avgOrderValue": 157.37,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 1200,
+      "totalPurchases": 3200
+    },
+    {
+      "customerId": "cust_003",
+      "customerName": "Michael Brown",
+      "preferredCategories": [
+        "cat_001",
+        "cat_007",
+        "cat_002"
+      ],
+      "preferredBrands": [
+        "SanDisk",
+        "Logitech",
+        "JBL"
+      ],
+      "totalSpent": 879.76,
+      "avgOrderValue": 109.97,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 80,
+      "totalPurchases": 450
+    },
+    {
+      "customerId": "cust_004",
+      "customerName": "Emily Davis",
+      "preferredCategories": [
+        "cat_004",
+        "cat_001",
+        "cat_007"
+      ],
+      "preferredBrands": [
+        "Starbucks",
+        "HP",
+        "Bodum"
+      ],
+      "totalSpent": 834.76,
+      "avgOrderValue": 104.34,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 300,
+      "totalPurchases": 980
+    },
+    {
+      "customerId": "cust_005",
+      "customerName": "David Wilson",
+      "preferredCategories": [
+        "cat_001",
+        "cat_007"
+      ],
+      "preferredBrands": [
+        "Logitech",
+        "TP-Link",
+        "Philips"
+      ],
+      "totalSpent": 1089.83,
+      "avgOrderValue": 155.69,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 650,
+      "totalPurchases": 2100
+    },
+    {
+      "customerId": "cust_006",
+      "customerName": "Lisa Anderson",
+      "preferredCategories": [
+        "cat_009",
+        "cat_005",
+        "cat_001"
+      ],
+      "preferredBrands": [
+        "Double A",
+        "Contigo",
+        "SanDisk"
+      ],
+      "totalSpent": 369.7,
+      "avgOrderValue": 61.62,
+      "purchaseFrequency": "monthly",
+      "loyaltyPoints": 25,
+      "totalPurchases": 120
+    },
+    {
+      "customerId": "cust_007",
+      "customerName": "James Taylor",
+      "preferredCategories": [
+        "cat_001",
+        "cat_006"
+      ],
+      "preferredBrands": [
+        "Belkin",
+        "Moleskine",
+        "TP-Link"
+      ],
+      "totalSpent": 454.56,
+      "avgOrderValue": 75.76,
+      "purchaseFrequency": "weekly",
+      "loyaltyPoints": 500,
+      "totalPurchases": 1500
+    },
+    {
+      "customerId": "cust_008",
+      "customerName": "Maria Garcia",
+      "preferredCategories": [
+        "cat_007",
+        "cat_006",
+        "cat_009"
+      ],
+      "preferredBrands": [
+        "IKEA",
+        "Swingline",
+        "Double A"
+      ],
+      "totalSpent": 420.7,
+      "avgOrderValue": 70.12,
+      "purchaseFrequency": "monthly",
+      "loyaltyPoints": 180,
+      "totalPurchases": 600
+    },
+    {
+      "customerId": "cust_009",
+      "customerName": "Robert Martinez",
+      "preferredCategories": [
+        "cat_001",
+        "cat_007",
+        "cat_006"
+      ],
+      "preferredBrands": [
+        "IKEA",
+        "Expo",
+        "Belkin"
+      ],
+      "totalSpent": 947.43,
+      "avgOrderValue": 157.9,
+      "purchaseFrequency": "monthly",
+      "loyaltyPoints": 750,
+      "totalPurchases": 2400
+    },
+    {
+      "customerId": "cust_010",
+      "customerName": "Patricia Rodriguez",
+      "preferredCategories": [
+        "cat_001",
+        "cat_006",
+        "cat_004"
+      ],
+      "preferredBrands": [
+        "Expo",
+        "Logitech",
+        "Starbucks"
+      ],
+      "totalSpent": 312.81,
+      "avgOrderValue": 62.56,
+      "purchaseFrequency": "monthly",
+      "loyaltyPoints": 90,
+      "totalPurchases": 300
+    }
+  ],
+  "crossSellRecommendations": [
+    {
+      "product1Id": "prod_001",
+      "product1Name": "Wireless Mouse",
+      "product2Id": "prod_002",
+      "product2Name": "USB-C Cable",
+      "frequency": 2,
+      "confidence": 28.6
+    },
+    {
+      "product1Id": "prod_003",
+      "product1Name": "Laptop Stand",
+      "product2Id": "prod_007",
+      "product2Name": "Laptop Bag",
+      "frequency": 2,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_011",
+      "product1Name": "Coffee Mug",
+      "product2Id": "prod_012",
+      "product2Name": "French Press",
+      "frequency": 2,
+      "confidence": 40.0
+    },
+    {
+      "product1Id": "prod_015",
+      "product1Name": "Notebook",
+      "product2Id": "prod_016",
+      "product2Name": "Pen Set",
+      "frequency": 2,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_005",
+      "product1Name": "Power Bank",
+      "product2Id": "prod_009",
+      "product2Name": "USB Hub",
+      "frequency": 2,
+      "confidence": 40.0
+    },
+    {
+      "product1Id": "prod_001",
+      "product1Name": "Wireless Mouse",
+      "product2Id": "prod_009",
+      "product2Name": "USB Hub",
+      "frequency": 1,
+      "confidence": 14.3
+    },
+    {
+      "product1Id": "prod_002",
+      "product1Name": "USB-C Cable",
+      "product2Id": "prod_009",
+      "product2Name": "USB Hub",
+      "frequency": 1,
+      "confidence": 25.0
+    },
+    {
+      "product1Id": "prod_006",
+      "product1Name": "Bluetooth Speaker",
+      "product2Id": "prod_020",
+      "product2Name": "Wireless Earbuds",
+      "frequency": 1,
+      "confidence": 25.0
+    },
+    {
+      "product1Id": "prod_011",
+      "product1Name": "Coffee Mug",
+      "product2Id": "prod_013",
+      "product2Name": "Coffee Beans",
+      "frequency": 1,
+      "confidence": 20.0
+    },
+    {
+      "product1Id": "prod_012",
+      "product1Name": "French Press",
+      "product2Id": "prod_013",
+      "product2Name": "Coffee Beans",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_001",
+      "product1Name": "Wireless Mouse",
+      "product2Id": "prod_010",
+      "product2Name": "Wireless Keyboard",
+      "frequency": 1,
+      "confidence": 14.3
+    },
+    {
+      "product1Id": "prod_004",
+      "product1Name": "HDMI Cable",
+      "product2Id": "prod_005",
+      "product2Name": "Power Bank",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_018",
+      "product1Name": "Office Chair",
+      "product2Id": "prod_019",
+      "product2Name": "Monitor Stand",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_002",
+      "product1Name": "USB-C Cable",
+      "product2Id": "prod_010",
+      "product2Name": "Wireless Keyboard",
+      "frequency": 1,
+      "confidence": 25.0
+    },
+    {
+      "product1Id": "prod_001",
+      "product1Name": "Wireless Mouse",
+      "product2Id": "prod_004",
+      "product2Name": "HDMI Cable",
+      "frequency": 1,
+      "confidence": 14.3
+    },
+    {
+      "product1Id": "prod_021",
+      "product1Name": "Gaming Mouse",
+      "product2Id": "prod_028",
+      "product2Name": "Mouse Pad Large",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_022",
+      "product1Name": "Mechanical Keyboard",
+      "product2Id": "prod_023",
+      "product2Name": "Gaming Headset",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_027",
+      "product1Name": "Webcam HD",
+      "product2Id": "prod_033",
+      "product2Name": "Charger 65W",
+      "frequency": 1,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_041",
+      "product1Name": "USB 3.0 Flash Drive 64GB",
+      "product2Id": "prod_042",
+      "product2Name": "USB 3.0 Flash Drive 128GB",
+      "frequency": 1,
+      "confidence": 16.7
+    },
+    {
+      "product1Id": "prod_045",
+      "product1Name": "Router WiFi 6",
+      "product2Id": "prod_046",
+      "product2Name": "Network Switch",
+      "frequency": 1,
+      "confidence": 16.7
+    },
+    {
+      "product1Id": "prod_047",
+      "product1Name": "Ethernet Cable 3m",
+      "product2Id": "prod_048",
+      "product2Name": "Ethernet Cable 5m",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_051",
+      "product1Name": "USB-C to USB Adapter",
+      "product2Id": "prod_052",
+      "product2Name": "USB Hub 4 Port",
+      "frequency": 1,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_057",
+      "product1Name": "Printer Ink Black",
+      "product2Id": "prod_058",
+      "product2Name": "Printer Ink Color",
+      "frequency": 1,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_059",
+      "product1Name": "A4 Paper 500 sheets",
+      "product2Id": "prod_060",
+      "product2Name": "A4 Paper 2000 sheets",
+      "frequency": 1,
+      "confidence": 16.7
+    },
+    {
+      "product1Id": "prod_061",
+      "product1Name": "Stapler",
+      "product2Id": "prod_062",
+      "product2Name": "Staples Pack",
+      "frequency": 1,
+      "confidence": 50.0
+    },
+    {
+      "product1Id": "prod_063",
+      "product1Name": "Whiteboard Marker",
+      "product2Id": "prod_064",
+      "product2Name": "Whiteboard Eraser",
+      "frequency": 1,
+      "confidence": 16.7
+    },
+    {
+      "product1Id": "prod_069",
+      "product1Name": "Filing Cabinet",
+      "product2Id": "prod_070",
+      "product2Name": "Bookshelf",
+      "frequency": 1,
+      "confidence": 20.0
+    },
+    {
+      "product1Id": "prod_077",
+      "product1Name": "Desk Lamp LED",
+      "product2Id": "prod_080",
+      "product2Name": "Smart Bulb",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_045",
+      "product1Name": "Router WiFi 6",
+      "product2Id": "prod_047",
+      "product2Name": "Ethernet Cable 3m",
+      "frequency": 1,
+      "confidence": 16.7
+    },
+    {
+      "product1Id": "prod_019",
+      "product1Name": "Monitor Stand",
+      "product2Id": "prod_020",
+      "product2Name": "Wireless Earbuds",
+      "frequency": 1,
+      "confidence": 33.3
+    },
+    {
+      "product1Id": "prod_021",
+      "product1Name": "Gaming Mouse",
+      "product2Id": "prod_022",
+      "product2Name": "Mechanical Keyboard",
+      "frequency": 1,
+      "confidence": 33.3
+    }
+  ],
+  "personalizedRecommendations": [
+    {
+      "customerId": "cust_001",
+      "customerName": "John Smith",
+      "recommendations": [
+        {
+          "productId": "prod_053",
+          "name": "USB Hub 7 Port",
+          "price": 39.99,
+          "score": 90,
+          "reason": "Matches your favorite category | Same brand you buy | In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_034",
+          "name": "Wireless Charger",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_038",
+          "name": "Stylus Pen",
+          "price": 59.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_046",
+          "name": "Network Switch",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_054",
+          "name": "Laptop Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_002",
+      "customerName": "Sarah Johnson",
+      "recommendations": [
+        {
+          "productId": "prod_019",
+          "name": "Monitor Stand",
+          "price": 44.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_028",
+          "name": "Mouse Pad Large",
+          "price": 19.99,
+          "score": 40,
+          "reason": "Matches your favorite category"
+        },
+        {
+          "productId": "prod_029",
+          "name": "Cable Organizer",
+          "price": 9.99,
+          "score": 40,
+          "reason": "Matches your favorite category"
+        },
+        {
+          "productId": "prod_030",
+          "name": "Laptop Cooler",
+          "price": 34.99,
+          "score": 40,
+          "reason": "Matches your favorite category"
+        },
+        {
+          "productId": "prod_031",
+          "name": "Desk Mat",
+          "price": 29.99,
+          "score": 40,
+          "reason": "Matches your favorite category"
+        },
+        {
+          "productId": "prod_032",
+          "name": "Phone Stand",
+          "price": 14.99,
+          "score": 40,
+          "reason": "Matches your favorite category"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_003",
+      "customerName": "Michael Brown",
+      "recommendations": [
+        {
+          "productId": "prod_043",
+          "name": "Memory Card 64GB",
+          "price": 15.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_044",
+          "name": "Memory Card 128GB",
+          "price": 25.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_034",
+          "name": "Wireless Charger",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_004",
+      "customerName": "Emily Davis",
+      "recommendations": [
+        {
+          "productId": "prod_003",
+          "name": "Laptop Stand",
+          "price": 39.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_006",
+          "name": "Bluetooth Speaker",
+          "price": 59.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_019",
+          "name": "Monitor Stand",
+          "price": 44.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_005",
+      "customerName": "David Wilson",
+      "recommendations": [
+        {
+          "productId": "prod_038",
+          "name": "Stylus Pen",
+          "price": 59.99,
+          "score": 90,
+          "reason": "Matches your favorite category | Same brand you buy | In your price range"
+        },
+        {
+          "productId": "prod_027",
+          "name": "Webcam HD",
+          "price": 69.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_034",
+          "name": "Wireless Charger",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_053",
+          "name": "USB Hub 7 Port",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_006",
+      "customerName": "Lisa Anderson",
+      "recommendations": [
+        {
+          "productId": "prod_003",
+          "name": "Laptop Stand",
+          "price": 39.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_006",
+          "name": "Bluetooth Speaker",
+          "price": 59.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_019",
+          "name": "Monitor Stand",
+          "price": 44.99,
+          "score": 20,
+          "reason": "In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 20,
+          "reason": "In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_007",
+      "customerName": "James Taylor",
+      "recommendations": [
+        {
+          "productId": "prod_004",
+          "name": "HDMI Cable",
+          "price": 12.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_049",
+          "name": "HDMI Cable 2m",
+          "price": 12.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_050",
+          "name": "HDMI Cable 5m",
+          "price": 19.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_008",
+      "customerName": "Maria Garcia",
+      "recommendations": [
+        {
+          "productId": "prod_018",
+          "name": "Office Chair",
+          "price": 199.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_070",
+          "name": "Bookshelf",
+          "price": 89.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_071",
+          "name": "Desk Drawer Organizer",
+          "price": 24.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_072",
+          "name": "Cable Management Box",
+          "price": 19.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_073",
+          "name": "Standing Desk",
+          "price": 399.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        },
+        {
+          "productId": "prod_074",
+          "name": "Office Partition",
+          "price": 199.99,
+          "score": 70,
+          "reason": "Matches your favorite category | Same brand you buy"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_009",
+      "customerName": "Robert Martinez",
+      "recommendations": [
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_034",
+          "name": "Wireless Charger",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_038",
+          "name": "Stylus Pen",
+          "price": 59.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_046",
+          "name": "Network Switch",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    },
+    {
+      "customerId": "cust_010",
+      "customerName": "Patricia Rodriguez",
+      "recommendations": [
+        {
+          "productId": "prod_005",
+          "name": "Power Bank",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_010",
+          "name": "Wireless Keyboard",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_033",
+          "name": "Charger 65W",
+          "price": 49.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_034",
+          "name": "Wireless Charger",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_038",
+          "name": "Stylus Pen",
+          "price": 59.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        },
+        {
+          "productId": "prod_046",
+          "name": "Network Switch",
+          "price": 39.99,
+          "score": 60,
+          "reason": "Matches your favorite category | In your price range"
+        }
+      ]
+    }
+  ],
+  "trendingProducts": [
+    {
+      "productId": "prod_041",
+      "name": "USB 3.0 Flash Drive 64GB",
+      "thisWeekSales": 17.0,
+      "lastWeekSales": 3.0,
+      "growth": 466.6666666666667,
+      "trend": "\ud83d\udd25 rising",
+      "price": 19.99
+    },
+    {
+      "productId": "prod_001",
+      "name": "Wireless Mouse",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 29.99
+    },
+    {
+      "productId": "prod_002",
+      "name": "USB-C Cable",
+      "thisWeekSales": 3.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 9.99
+    },
+    {
+      "productId": "prod_004",
+      "name": "HDMI Cable",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 12.99
+    },
+    {
+      "productId": "prod_003",
+      "name": "Laptop Stand",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 39.99
+    },
+    {
+      "productId": "prod_006",
+      "name": "Bluetooth Speaker",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 59.99
+    },
+    {
+      "productId": "prod_007",
+      "name": "Laptop Bag",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 34.99
+    },
+    {
+      "productId": "prod_008",
+      "name": "Screen Protector",
+      "thisWeekSales": 3.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 14.99
+    },
+    {
+      "productId": "prod_005",
+      "name": "Power Bank",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 49.99
+    },
+    {
+      "productId": "prod_010",
+      "name": "Wireless Keyboard",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 49.99
+    },
+    {
+      "productId": "prod_011",
+      "name": "Coffee Mug",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 12.99
+    },
+    {
+      "productId": "prod_012",
+      "name": "French Press",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 29.99
+    },
+    {
+      "productId": "prod_014",
+      "name": "Water Bottle",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 19.99
+    },
+    {
+      "productId": "prod_016",
+      "name": "Pen Set",
+      "thisWeekSales": 2.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 14.99
+    },
+    {
+      "productId": "prod_015",
+      "name": "Notebook",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 24.99
+    },
+    {
+      "productId": "prod_017",
+      "name": "Desk Lamp",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 29.99
+    },
+    {
+      "productId": "prod_009",
+      "name": "USB Hub",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 24.99
+    },
+    {
+      "productId": "prod_048",
+      "name": "Ethernet Cable 5m",
+      "thisWeekSales": 4.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 14.99
+    },
+    {
+      "productId": "prod_018",
+      "name": "Office Chair",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 199.99
+    },
+    {
+      "productId": "prod_020",
+      "name": "Wireless Earbuds",
+      "thisWeekSales": 1.0,
+      "lastWeekSales": 0.0,
+      "growth": 100.0,
+      "trend": "\ud83d\udd25 rising",
+      "price": 89.99
+    }
+  ],
+  "conversationalAnalytics": {
+    "kpis": {
+      "totalRevenue": 14785.44,
+      "totalOrders": 166,
+      "averageOrderValue": 89.07,
+      "totalCustomers": 10,
+      "repeatCustomerRate": 400.0,
+      "topProduct": "Whiteboard Marker",
+      "topCategory": "cat_001",
+      "dailyAverageSales": 157.29,
+      "lowStockCount": 30,
+      "periodStart": "2026-05-01",
+      "periodEnd": "2026-08-02"
+    },
+    "insights": [
+      "\u26a0\ufe0f 30 products are low on stock. Consider reordering soon.",
+      "\ud83d\udc4d Customer loyalty is strong with 400.0% repeat purchase rate.",
+      "\ud83d\udcb0 Revenue is strong at $14,785.44 for the period."
+    ],
+    "recommendations": [
+      "Create purchase orders for low stock items immediately.",
+      "Focus marketing on the top-performing category to maximize ROI."
+    ]
+  }
+}

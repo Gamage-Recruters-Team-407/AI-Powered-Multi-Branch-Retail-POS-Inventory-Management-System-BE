@@ -2,31 +2,52 @@ const mongoose = require("mongoose");
 
 const returnSchema = new mongoose.Schema(
 {
-    sale: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Sale"
+    id: {
+        type: String,
+        required: true,
+        unique: true
     },
-
+    invoiceId: {
+        type: String,
+        required: true
+    },
+    customer: {
+        type: String,
+        required: true
+    },
+    branch: {
+        type: String,
+        required: true
+    },
+    date: {
+        type: String,
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ["Refunded", "Pending Approval", "Rejected"],
+        default: "Pending Approval"
+    },
+    reason: {
+        type: String,
+        required: true
+    },
+    condition: {
+        type: String,
+        required: true
+    },
     items: [
         {
-            product: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: "Product"
-            },
-
-            quantity: Number,
-
-            refundAmount: Number
+            id: String,
+            name: String,
+            qty: Number,
+            price: Number
         }
-    ],
-
-    reason: String,
-
-    refundStatus: {
-        type: String,
-        enum: ["PENDING", "APPROVED", "COMPLETED"],
-        default: "PENDING"
-    }
+    ]
 },
 { timestamps: true }
 );

@@ -32,6 +32,8 @@ const productSchema = new mongoose.Schema(
 
     image: String,
 
+    imagePublicId: String,
+
     reorderLevel: Number,
 
     unit: String,
