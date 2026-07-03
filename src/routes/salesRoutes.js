@@ -8,7 +8,7 @@ const {
   voidSale,
   getSalesSummary,
   getProductByBarcode,
-} = require("../controllers/salesController");
+} = require("../controllers/SalesController");
 
 // All routes require authentication
 router.use(protect);
