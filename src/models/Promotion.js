@@ -24,7 +24,34 @@ const promotionSchema = new mongoose.Schema(
         }
     ],
 
-    couponCode: String,
+    couponCode: {
+        type: String,
+        unique: true,
+        uppercase: true,
+        trim: true
+    },
+
+    minPurchaseAmount: {
+        type: Number,
+        default: 0
+    },
+
+    usageLimit: {
+        type: Number,
+        default: null
+    },
+
+    usageCount: {
+        type: Number,
+        default: 0
+    },
+
+    branches: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Branch"
+        }
+    ],
 
     isActive: {
         type: Boolean,
