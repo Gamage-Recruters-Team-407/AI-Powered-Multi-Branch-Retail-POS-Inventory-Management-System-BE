@@ -6,8 +6,9 @@ const User = require('../models/User');
 const getUsers = async (req, res) => {
   try {
     const users = await User.find()
-      .select('-password')
-      .populate('branch', 'name');
+  .sort({ createdAt: -1 })
+  .select('-password')
+  .populate('branch', 'name');
 
     res.json({ success: true, count: users.length, data: users });
   } catch (error) {
@@ -146,4 +147,20 @@ const getManagers = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser , getManagers};
+const searchUsers = async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    const users = await User.find({
+      $or: [
+        { firstName: { $regex: q, $options: 'i' } },
+        { lastName: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } }
+      ]
+    }).select('-password');
+    res.json({ data: users });
+  } catch (err) {
+    res.status(500).json({ message: 'Search failed' });
+  }
+};
+
+module.exports = { getUsers, getUserById, createUser, updateUser, deleteUser, searchUsers, getManagers };

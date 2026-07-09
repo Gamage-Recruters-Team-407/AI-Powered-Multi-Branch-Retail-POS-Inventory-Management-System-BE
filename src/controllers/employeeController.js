@@ -9,6 +9,8 @@ const cloudinary = require("../config/cloudinary");
 const { isMongoConnected } = require("../middleware/requireMongoConnection");
 const fs = require("fs");
 const path = require("path");
+const Branch = require("../models/Branch");
+const AuditService = require("../services/auditService");
 
 // Helper to save file locally on disk fallback
 const saveLocalFile = (req) => {
@@ -45,10 +47,23 @@ const getAllEmployees = async (req, res) => {
         return res.status(200).json({ success: true, employees: [] });
     }
     try {
-        const employees = await Employee.find();
+        const employees = await Employee.find().populate('branch', 'name');
+
+        const roleOrder = {
+            'admin': 1,
+            'manager': 2,
+            'cashier': 3
+        };
+
+        const sortedEmployees = employees.sort((a, b) => {
+            const roleA = (a.role || '').toLowerCase();
+            const roleB = (b.role || '').toLowerCase();
+            return (roleOrder[roleA] || 99) - (roleOrder[roleB] || 99);
+        });
+
         return res.status(200).json({
             success: true,
-            employees
+            employees: sortedEmployees
         });
     } catch (error) {
         return res.status(500).json({
@@ -114,10 +129,9 @@ const addEmployee = async (req, res) => {
 
         const emailClean = email.trim().toLowerCase();
 
-        // Check for existing employee/user with same email
-        const existingUser = await User.findOne({ email: emailClean });
+        // Check for existing employee with same email
         const existingEmp = await Employee.findOne({ email: emailClean });
-        if (existingUser || existingEmp) {
+        if (existingEmp) {
             return res.status(400).json({
                 success: false,
                 message: "An employee with this email address is already registered."
@@ -208,49 +222,79 @@ const addEmployee = async (req, res) => {
 
         const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
-        // Step 1: Create corresponding User login record
-        const newAuthUser = await User.create({
-            firstName,
-            lastName,
-            name: `${firstName} ${lastName}`.trim(),
-            email: emailClean,
-            password: "tempPassword123", // Default login password
-            phone,
-            role: role ? role.toUpperCase() : "CASHIER",
-            branch: validBranch,
-            isActive: true
-        });
+        let branchName = "";
+        if (validBranch) {
+            const branchDoc = await Branch.findById(validBranch);
+            branchName = branchDoc ? branchDoc.name : "";
+        }
+
+        // Define the role to use (defaults to input or CASHIER)
+        let employeeRole = role ? role.toUpperCase() : "CASHIER";
+
+        // Step 1: Fetch corresponding User login record or create one if it doesn't exist
+        let authUser = await User.findOne({ email: emailClean });
+        if (!authUser) {
+            authUser = await User.create({
+                firstName,
+                lastName,
+                name: `${firstName} ${lastName}`.trim(),
+                email: emailClean,
+                password: "tempPassword123", // Default login password
+                phone,
+                role: employeeRole,
+                branch: validBranch,
+                isActive: true
+            });
+        } else {
+            // Fix: Prioritize and keep the existing user's role (do not demote them)
+            employeeRole = authUser.role || employeeRole;
+            
+            // Only update branch if provided
+            if (validBranch) authUser.branch = validBranch;
+            await authUser.save();
+        }
 
         // Generate unique employee ID
         const employeeId = `EMP-${Date.now().toString().slice(-6)}`;
 
         // Step 2: Create Employee record linked to User
         const newEmployee = await Employee.create({
-            user: newAuthUser._id,
+            user: authUser._id,
             employeeId,
             firstName,
             lastName,
             email: emailClean,
             phone,
-            role: role ? role.toUpperCase() : "CASHIER",
+            role: employeeRole,
             salary: salary || 40000,
             branch: validBranch,
+            branchName: branchName, 
             joiningDate: hireDate || new Date(),
             photo: imageUrl,
             status: "Active",
-            performanceScore: 4.0,
+            performanceScore: 0.0,
             workingStatus: "Off Duty"
         });
 
-        // Initialize default performance metric record
-        const currentMonth = new Date().toISOString().substring(0, 7);
-        await EmployeePerformance.create({
-            employeeId: newEmployee._id.toString(),
-            punctuality: 100,
-            salesAchievement: 100,
-            customerRating: 4.0,
-            taskCompletion: 100,
-            date: currentMonth
+
+
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user || authUser,
+            action: "CREATE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Employee",
+            resourceId: newEmployee._id,
+            resourceName: `${firstName} ${lastName}`,
+            metadata: {
+                employeeId: newEmployee.employeeId,
+                role: employeeRole,
+                branch: branchName
+            },
+            branch: validBranch,
+            branchName: branchName,
         });
 
         // Trigger a notification
@@ -312,6 +356,18 @@ const updateEmployee = async (req, res) => {
 
         const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
+        // Save old values for audit
+        const oldValues = {
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            email: employee.email,
+            phone: employee.phone,
+            role: employee.role,
+            branch: employee.branch,
+            salary: employee.salary,
+            status: employee.status
+        };
+
         // Validate updates if provided
         const nameRegex = /^[a-zA-Z\s\-']{2,50}$/;
         if (firstName !== undefined && !nameRegex.test(firstName.trim())) {
@@ -358,6 +414,14 @@ const updateEmployee = async (req, res) => {
                     success: false,
                     message: "Please provide a valid Sri Lankan mobile number."
                 });
+            }
+        }
+
+        if (branch !== undefined) {
+            employee.branch = validBranch;
+            if (validBranch) {
+                const branchDoc = await Branch.findById(validBranch);
+                employee.branchName = branchDoc ? branchDoc.name : "";
             }
         }
         if (salary !== undefined && Number(salary) <= 0) {
@@ -446,12 +510,42 @@ const updateEmployee = async (req, res) => {
 
         const updatedEmployee = await employee.save();
 
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "UPDATE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Employee",
+            resourceId: updatedEmployee._id,
+            resourceName: `${updatedEmployee.firstName} ${updatedEmployee.lastName}`,
+            previousValues: oldValues,
+            newValues: {
+                firstName: updatedEmployee.firstName,
+                lastName: updatedEmployee.lastName,
+                email: updatedEmployee.email,
+                phone: updatedEmployee.phone,
+                role: updatedEmployee.role,
+                branch: updatedEmployee.branch,
+                salary: updatedEmployee.salary,
+                status: updatedEmployee.status
+            },
+            metadata: {
+                employeeId: updatedEmployee.employeeId,
+                updatedFields: Object.keys(req.body).filter(k => k !== 'photo')
+            },
+            branch: updatedEmployee.branch,
+            branchName: updatedEmployee.branchName,
+        });
+
         return res.status(200).json({
             success: true,
             employee: updatedEmployee,
             message: "Employee updated successfully"
         });
     } catch (error) {
+        console.error("Update employee error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to update employee details.",
@@ -478,6 +572,9 @@ const deleteEmployee = async (req, res) => {
             });
         }
 
+        const employeeName = `${employee.firstName} ${employee.lastName}`;
+        const employeeId = employee.employeeId;
+
         // Step 1: Delete corresponding User login record
         if (employee.user) {
             await User.findByIdAndDelete(employee.user);
@@ -492,13 +589,32 @@ const deleteEmployee = async (req, res) => {
         // Step 3: Delete Employee record
         await employee.deleteOne();
 
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "DELETE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Employee",
+            resourceId: employee._id,
+            resourceName: employeeName,
+            metadata: {
+                employeeId: employeeId,
+                role: employee.role,
+                branch: employee.branchName
+            },
+            branch: employee.branch,
+            branchName: employee.branchName,
+        });
+
         // Trigger a notification
         systemEvents.emit('SEND_ALERT', {
             target: { role: 'Admin' },
             category: 'SECURITY',
             type: 'WARNING',
             title: 'Employee Terminated',
-            message: `Employee ${employee.firstName} ${employee.lastName} (${employee.employeeId}) has been removed from the system.`,
+            message: `Employee ${employeeName} (${employeeId}) has been removed from the system.`,
             channels: ['in-app', 'email']
         });
 
@@ -507,6 +623,7 @@ const deleteEmployee = async (req, res) => {
             message: "Employee profile deleted successfully"
         });
     } catch (error) {
+        console.error("Delete employee error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to delete employee profile.",
@@ -533,6 +650,7 @@ const getSchedules = async (req, res) => {
             schedules
         });
     } catch (error) {
+        console.error("Get schedules error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to retrieve schedules.",
@@ -555,21 +673,45 @@ const saveSchedule = async (req, res) => {
             });
         }
 
-        await EmployeeSchedule.findOneAndDelete({ employeeId, date });
+        // ✅ Fixed: new: true → returnDocument: 'after'
+        const schedule = await EmployeeSchedule.findOneAndUpdate(
+            { employeeId, date },
+            { 
+                employeeId, 
+                date, 
+                shift, 
+                notes: notes || "" 
+            },
+            { 
+                upsert: true,
+                returnDocument: 'after',  // ✅ Fixed
+                runValidators: true
+            }
+        );
 
-        const newSchedule = await EmployeeSchedule.create({
-            employeeId,
-            date,
-            shift,
-            notes: notes || ""
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "UPDATE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Schedule",
+            metadata: {
+                employeeId,
+                date,
+                shift,
+                notes
+            }
         });
 
         return res.status(200).json({
             success: true,
-            schedule: newSchedule,
+            schedule,
             message: "Schedule updated successfully"
         });
     } catch (error) {
+        console.error("Save schedule error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to assign schedule.",
@@ -596,6 +738,7 @@ const getAttendance = async (req, res) => {
             attendance
         });
     } catch (error) {
+        console.error("Get attendance error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to retrieve attendance logs.",
@@ -633,18 +776,43 @@ const logAttendance = async (req, res) => {
             await emp.save();
         }
 
-        // Create new log record
-        const newLog = await EmployeeAttendance.create({
-            employeeId,
-            date,
-            clockIn: clockIn || "",
-            clockOut: clockOut || "",
-            status: status || "Present"
+        // ✅ Fixed: new: true → returnDocument: 'after'
+        const attendanceLog = await EmployeeAttendance.findOneAndUpdate(
+            { employeeId, date },
+            {
+                employeeId,
+                date,
+                clockIn: clockIn || "",
+                clockOut: clockOut || "",
+                status: status || "Present"
+            },
+            {
+                upsert: true,
+                returnDocument: 'after',  // ✅ Fixed
+                runValidators: true
+            }
+        );
+
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "UPDATE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Attendance",
+            metadata: {
+                employeeId,
+                date,
+                clockIn,
+                clockOut,
+                status
+            }
         });
 
         return res.status(200).json({
             success: true,
-            log: newLog,
+            log: attendanceLog,
             message: "Attendance logged successfully"
         });
     } catch (error) {
@@ -654,6 +822,7 @@ const logAttendance = async (req, res) => {
                 message: "Attendance record for this date already exists for the employee."
             });
         }
+        console.error("Log attendance error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to log attendance.",
@@ -680,6 +849,7 @@ const getPerformanceMetrics = async (req, res) => {
             performance
         });
     } catch (error) {
+        console.error("Get performance metrics error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to retrieve performance metrics.",
@@ -709,14 +879,23 @@ const logPerformanceMetric = async (req, res) => {
             });
         }
 
-        const newPerf = await EmployeePerformance.create({
-            employeeId,
-            punctuality: parseInt(punctuality),
-            salesAchievement: parseInt(salesAchievement),
-            customerRating: parseFloat(customerRating),
-            taskCompletion: parseInt(taskCompletion),
-            date
-        });
+        // ✅ Fixed: new: true → returnDocument: 'after'
+        const performance = await EmployeePerformance.findOneAndUpdate(
+            { employeeId, date },
+            {
+                employeeId,
+                punctuality: parseInt(punctuality),
+                salesAchievement: parseInt(salesAchievement),
+                customerRating: parseFloat(customerRating),
+                taskCompletion: parseInt(taskCompletion),
+                date
+            },
+            {
+                upsert: true,
+                returnDocument: 'after',  // ✅ Fixed
+                runValidators: true
+            }
+        );
 
         // Recalculate average performanceScore for Employee
         let emp = await Employee.findById(employeeId);
@@ -734,18 +913,37 @@ const logPerformanceMetric = async (req, res) => {
                 const currScore = (punctuality + salesAchievement + (customerRating * 20) + taskCompletion) / 4 / 20;
                 return acc + currScore;
             }, 0);
-            const avgScore = allPerfs.length > 0 ? (totalScore / allPerfs.length) : 4.0;
+            const avgScore = allPerfs.length > 0 ? (totalScore / allPerfs.length) : 0.0;
             
-            emp.performanceScore = isNaN(avgScore) ? 4.0 : parseFloat(avgScore.toFixed(2));
+            emp.performanceScore = isNaN(avgScore) ? 0.0 : parseFloat(avgScore.toFixed(2));
             await emp.save();
         }
 
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "UPDATE",
+            module: "EMPLOYEE",
+            req,
+            status: "SUCCESS",
+            resourceType: "Performance",
+            metadata: {
+                employeeId,
+                punctuality,
+                salesAchievement,
+                customerRating,
+                taskCompletion,
+                date
+            }
+        });
+
         return res.status(200).json({
             success: true,
-            performance: newPerf,
+            performance,
             message: "Performance metrics updated"
         });
     } catch (error) {
+        console.error("Log performance metric error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to save performance rating scorecard.",
@@ -754,12 +952,24 @@ const logPerformanceMetric = async (req, res) => {
     }
 };
 
+// ==========================================
+// 🚀 AUTO CLOCK-IN / CLOCK-OUT
+// ==========================================
+
 // @desc    Auto clock-in attendance upon login
 // @route   POST /api/employees/attendance/auto-clock-in
 // @access  Private
 const autoClockIn = async (req, res) => {
     try {
-        const employee = await Employee.findOne({ user: req.user._id });
+        let employee = await Employee.findOne({ user: req.user._id });
+        if (!employee && req.user.email) {
+            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
+            if (employee) {
+                employee.user = req.user._id;
+                await employee.save();
+                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
+            }
+        }
         if (!employee) {
             return res.status(200).json({
                 success: true,
@@ -780,45 +990,65 @@ const autoClockIn = async (req, res) => {
         hours = hours ? hours : 12;
         const clockInTimeStr = `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
 
-        let attendanceRecord = await EmployeeAttendance.findOne({
-            employeeId: employee._id.toString(),
-            date: localDateStr
-        });
-
-        if (!attendanceRecord) {
-            attendanceRecord = await EmployeeAttendance.create({
+        // ✅ Fixed: new: true → returnDocument: 'after'
+        let attendanceRecord = await EmployeeAttendance.findOneAndUpdate(
+            {
+                employeeId: employee._id.toString(),
+                date: localDateStr
+            },
+            {
                 employeeId: employee._id.toString(),
                 date: localDateStr,
                 clockIn: clockInTimeStr,
                 clockOut: "",
                 status: "Present"
-            });
-            
-            employee.workingStatus = "Clocked In";
-            
-            const dateObj = new Date(localDateStr);
-            const attendanceExistsInEmployee = employee.attendance.some(a => {
-                if (!a.date) return false;
-                try {
-                    const d = a.date instanceof Date ? a.date : new Date(a.date);
-                    return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === localDateStr;
-                } catch (e) {
-                    return false;
-                }
-            });
-            if (!attendanceExistsInEmployee) {
-                employee.attendance.push({
-                    date: dateObj,
-                    status: "Present"
-                });
+            },
+            {
+                upsert: true,
+                returnDocument: 'after',  // ✅ Fixed
+                runValidators: true
             }
-            await employee.save();
-        } else {
-            if (employee.workingStatus !== "Clocked In" && !attendanceRecord.clockOut) {
-                employee.workingStatus = "Clocked In";
-                await employee.save();
+        );
+
+        // Update employee working status
+        employee.workingStatus = "Clocked In";
+        
+        // Add to attendance array if not exists
+        const dateObj = new Date(localDateStr);
+        const attendanceExistsInEmployee = employee.attendance.some(a => {
+            if (!a.date) return false;
+            try {
+                const d = a.date instanceof Date ? a.date : new Date(a.date);
+                return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === localDateStr;
+            } catch (e) {
+                return false;
             }
+        });
+        if (!attendanceExistsInEmployee) {
+            employee.attendance.push({
+                date: dateObj,
+                status: "Present"
+            });
         }
+        await employee.save();
+
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "LOGIN",
+            module: "AUTH",
+            req,
+            status: "SUCCESS",
+            resourceType: "Attendance",
+            metadata: {
+                employeeId: employee._id,
+                date: localDateStr,
+                clockIn: clockInTimeStr,
+                status: "Present"
+            },
+            branch: employee.branch,
+            branchName: employee.branchName,
+        });
 
         return res.status(200).json({
             success: true,
@@ -826,6 +1056,7 @@ const autoClockIn = async (req, res) => {
             attendance: attendanceRecord
         });
     } catch (error) {
+        // Handle duplicate key error gracefully
         if (error.code === 11000) {
             try {
                 const employee = await Employee.findOne({ user: req.user._id });
@@ -851,6 +1082,7 @@ const autoClockIn = async (req, res) => {
                 console.error("Error retrieving existing record on duplicate key:", findErr.message);
             }
         }
+        console.error("Auto clock-in error:", error);
         return res.status(500).json({
             success: false,
             message: "Auto clock-in failed.",
@@ -864,7 +1096,15 @@ const autoClockIn = async (req, res) => {
 // @access  Private
 const autoClockOut = async (req, res) => {
     try {
-        const employee = await Employee.findOne({ user: req.user._id });
+        let employee = await Employee.findOne({ user: req.user._id });
+        if (!employee && req.user.email) {
+            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
+            if (employee) {
+                employee.user = req.user._id;
+                await employee.save();
+                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
+            }
+        }
         if (!employee) {
             return res.status(200).json({
                 success: true,
@@ -891,20 +1131,40 @@ const autoClockOut = async (req, res) => {
         });
 
         if (attendanceRecord) {
-            attendanceRecord.clockOut = clockOutTimeStr;
-            await attendanceRecord.save();
+            // ✅ Fixed: new: true → returnDocument: 'after'
+            attendanceRecord = await EmployeeAttendance.findOneAndUpdate(
+                {
+                    employeeId: employee._id.toString(),
+                    date: localDateStr
+                },
+                {
+                    $set: { clockOut: clockOutTimeStr }
+                },
+                {
+                    returnDocument: 'after',  // ✅ Fixed
+                    runValidators: true
+                }
+            );
             
             employee.workingStatus = "Off Duty";
             await employee.save();
         } else {
+            // Try to find latest open record
             const latestOpenRecord = await EmployeeAttendance.findOne({
                 employeeId: employee._id.toString(),
                 clockOut: ""
             }).sort({ createdAt: -1 });
 
             if (latestOpenRecord) {
-                latestOpenRecord.clockOut = clockOutTimeStr;
-                await latestOpenRecord.save();
+                // ✅ Fixed: new: true → returnDocument: 'after'
+                await EmployeeAttendance.findOneAndUpdate(
+                    { _id: latestOpenRecord._id },
+                    { $set: { clockOut: clockOutTimeStr } },
+                    { 
+                        returnDocument: 'after',  // ✅ Fixed
+                        runValidators: true 
+                    }
+                );
             } else {
                 await EmployeeAttendance.create({
                     employeeId: employee._id.toString(),
@@ -919,11 +1179,29 @@ const autoClockOut = async (req, res) => {
             await employee.save();
         }
 
+        // ✅ Add Audit Log
+        await AuditService.log({
+            user: req.user,
+            action: "LOGOUT",
+            module: "AUTH",
+            req,
+            status: "SUCCESS",
+            resourceType: "Attendance",
+            metadata: {
+                employeeId: employee._id,
+                date: localDateStr,
+                clockOut: clockOutTimeStr
+            },
+            branch: employee.branch,
+            branchName: employee.branchName,
+        });
+
         return res.status(200).json({
             success: true,
             message: "Auto clock-out successful"
         });
     } catch (error) {
+        console.error("Auto clock-out error:", error);
         return res.status(500).json({
             success: false,
             message: "Auto clock-out failed.",
@@ -931,6 +1209,10 @@ const autoClockOut = async (req, res) => {
         });
     }
 };
+
+// ==========================================
+// 📤 EXPORT MODULE
+// ==========================================
 
 module.exports = {
     getAllEmployees,
