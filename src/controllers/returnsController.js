@@ -29,7 +29,7 @@ exports.getInvoiceById = async (req, res) => {
             data: invoice
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message
         });
@@ -60,7 +60,7 @@ exports.createReturn = async (req, res) => {
             data: newReturn
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message
         });
@@ -77,7 +77,7 @@ exports.updateReturnStatus = async (req, res) => {
             data: updatedReturn
         });
     } catch (error) {
-        return res.status(500).json({
+        return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message
         });

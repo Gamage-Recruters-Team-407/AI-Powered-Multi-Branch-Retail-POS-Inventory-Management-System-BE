@@ -2,60 +2,127 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const SecurityService = require("../services/securityService");
 
-// ── 1. PROTECT MIDDLEWARE ──────────────────────────────────────────────────
+const normalizeRole = (role = "") =>
+  String(role || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/^super_admin$|^superadmin$|^administrator$/, "admin");
+
 const protect = async (req, res, next) => {
   let token;
-  
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    token = req.headers.authorization.split(" ")[1];
-  }
-
-  if (!token) {
-    return res.status(401).json({ success: false, message: "Not authorized, no token" });
-  }
 
   try {
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized, no token",
+      });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Validate session if sessionId exists in token
+
+    if (!decoded?.id) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token payload",
+      });
+    }
+
     if (decoded.sessionId) {
       const session = await SecurityService.validateSession(decoded.sessionId);
+
       if (!session) {
-        return res.status(401).json({ success: false, message: "Session expired or invalid" });
+        return res.status(401).json({
+          success: false,
+          message: "Session expired or invalid",
+        });
       }
+
       req.session = session;
     }
-    
-    req.user = await User.findById(decoded.id).select("-password");
-    if (!req.user || !req.user.isActive) {
-      return res.status(401).json({ success: false, message: "Account disabled or user not found" });
+
+    const user = await User.findById(decoded.id).select("-password");
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "User not found",
+      });
     }
+
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "Account is disabled. Please contact admin.",
+      });
+    }
+
+    /**
+     * Important:
+     * Old users may not have approvalStatus in MongoDB.
+     * We treat old users as APPROVED to avoid locking old admin accounts.
+     * New registered users will have approvalStatus: PENDING.
+     */
+    const approvalStatus = user.approvalStatus || "APPROVED";
+
+    if (approvalStatus !== "APPROVED") {
+      return res.status(403).json({
+        success: false,
+        message:
+          approvalStatus === "PENDING"
+            ? "Your account is pending admin approval."
+            : "Your account registration was rejected. Please contact admin.",
+      });
+    }
+
+    req.user = user;
+    req.user.sessionId = decoded.sessionId || null;
 
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: "Token invalid or expired" });
+    return res.status(401).json({
+      success: false,
+      message: "Token invalid or expired",
+    });
   }
 };
 
-// ── 2. AUTHORIZE MIDDLEWARE (Single role or multiple roles) ─────────────────
 const authorize = (...roles) => {
+  const allowedRoles = roles.map((role) => normalizeRole(role));
+
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ success: false, message: "Not authenticated" });
-    }
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        message: `Role '${req.user.role}' is not allowed to access this resource`,
+        message: "Not authenticated",
       });
     }
+
+    const userRole = normalizeRole(req.user.role);
+
+    if (!allowedRoles.includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied. Required role: ${roles.join(" or ")}`,
+      });
+    }
+
     next();
   };
 };
 
-// ── 3. AUTHORIZE ROLES (Alias for authorize - for backward compatibility) ───
-const authorizeRoles = (...roles) => {
-  return authorize(...roles);
-};
+const authorizeRoles = (...roles) => authorize(...roles);
 
-module.exports = { protect, authorize, authorizeRoles };
+module.exports = {
+  protect,
+  authorize,
+  authorizeRoles,
+};

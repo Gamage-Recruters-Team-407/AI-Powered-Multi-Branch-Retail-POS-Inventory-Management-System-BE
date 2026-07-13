@@ -106,6 +106,8 @@ const auditMiddleware = (options = {}) => {
       setImmediate(async () => {
         try {
           const status = res.statusCode >= 400 ? "FAILURE" : "SUCCESS";
+          
+          // ✅ Pass full user object including all details
           await AuditService.log({
             user: req.user || null,
             action: routeConfig.action,
@@ -116,6 +118,8 @@ const auditMiddleware = (options = {}) => {
               statusCode: res.statusCode,
               requestBody: _sanitizeBody(req.body),
             },
+            branch: req.user?.branch || null,
+            branchName: req.user?.branchName || null,
           });
         } catch (_) {
           // Never block the response

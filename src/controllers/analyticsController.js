@@ -3,7 +3,7 @@ const AnalyticsService = require('../services/analyticsService');
 class AnalyticsController {
   /**
    * Sales & Profit Trends
-   * GET /api/analytics/sales-trends
+   * GET /api/analytics/sales-trends 
    */
   async getSalesTrends(req, res) {
     try {

@@ -14,11 +14,38 @@ const processAlert = async (data) => {
     if (target && target.userId) {
       query._id = target.userId;
     } else if (target) {
-      if (target.role) query.role = target.role.toUpperCase();
-      if (target.roles && Array.isArray(target.roles)) {
-        query.role = { $in: target.roles.map(r => r.toUpperCase()) };
+      // Create role conditions (case insensitive)
+      let roleCondition = null;
+      if (target.role) {
+        roleCondition = new RegExp(`^${target.role}$`, 'i');
+      } else if (target.roles && Array.isArray(target.roles)) {
+        roleCondition = { $in: target.roles.map(r => new RegExp(`^${r}$`, 'i')) };
       }
-      if (target.branchId) query.branch = target.branchId; // Auth team used 'branch' in User.js
+
+      const adminBypass = { role: { $in: [/^SUPER_ADMIN$/i, /^ADMIN$/i] } };
+
+      if (target.branchId) {
+          // If branch is specified, match:
+          // (Users with matching role AND matching branch) OR (Admins)
+          let branchMatch = { branch: target.branchId };
+          if (roleCondition) {
+              branchMatch.role = roleCondition;
+          }
+          
+          query = {
+              $or: [ branchMatch, adminBypass ]
+          };
+      } else {
+          // No branch specified. Match role, but optionally ensure admins get it too if it was restrictive
+          if (roleCondition) {
+              query = {
+                  $or: [ { role: roleCondition }, adminBypass ]
+              };
+          } else {
+              // If no role and no branch, we probably shouldn't blast to everyone, but if they didn't specify, default to admins
+              query = adminBypass;
+          }
+      }
     }
 
     // Stop if no valid target was provided
@@ -65,20 +92,20 @@ const processAlert = async (data) => {
 
       // Email Notification (via Background Queue)
       if (channels.includes('email') && prefs.emailEnabled && user.email) {
-        await notificationQueue.add('sendEmailJob', {
+        notificationQueue.add('sendEmailJob', {
             type: 'EMAIL',
             recipient: user.email,
             content: { subject: title, text: message }
-        });
+        }).catch(err => console.error(`[NotificationService] Redis Queue Error (Email): ${err.message}`));
       }
 
       // SMS Notification (via Background Queue)
       if (channels.includes('sms') && prefs.smsEnabled && user.phone) {
-        await notificationQueue.add('sendSmsJob', {
+        notificationQueue.add('sendSmsJob', {
             type: 'SMS',
             recipient: user.phone,
             content: { text: `${title} - ${message}` }
-        });
+        }).catch(err => console.error(`[NotificationService] Redis Queue Error (SMS): ${err.message}`));
       }
     }
 

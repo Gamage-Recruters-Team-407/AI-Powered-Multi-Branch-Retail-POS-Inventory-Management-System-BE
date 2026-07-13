@@ -26,38 +26,74 @@ const transporter = nodemailer.createTransport({
 // ── 3. REGISTER FUNCTION ────────────────────────────────────────────────────
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, branch } = req.body;
+    const { name, email, password, branch } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required.",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
 
     const { valid, errors } = await SecurityService.validatePassword(password);
     if (!valid) {
-      return res.status(400).json({ success: false, message: "Password policy violation.", errors });
+      return res.status(400).json({
+        success: false,
+        message: "Password policy violation.",
+        errors,
+      });
     }
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
-      return res.status(400).json({ success: false, message: "Email already registered" });
+      return res.status(400).json({
+        success: false,
+        message: "Email already registered",
+      });
     }
 
-    const user = await User.create({ name, email, password, role, branch });
-    const session = await SecurityService.createSession(user, req);
-    const token = generateToken(user._id, session.sessionId);
+    const user = await User.create({
+      name,
+      email: normalizedEmail,
+      password,
+      role: "user",
+      branch,
+      isActive: true,
+      approvalStatus: "PENDING",
+    });
 
     await AuditService.fromReq(req, {
       action: "USER_REGISTERED",
       module: "AUTH",
       status: "SUCCESS",
       severity: "MEDIUM",
-      metadata: { registeredUserId: user._id, email: user.email, role: user.role }
+      metadata: {
+        registeredUserId: user._id,
+        email: user.email,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+      },
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      token,
-      sessionId: session.sessionId,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role },
+      message:
+        "Registration successful. Please wait for admin approval before logging in.",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+      },
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -105,6 +141,37 @@ const loginUser = async (req, res) => {
       await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "INVALID_PASSWORD", userId: user._id });
       await AuditService.log({ user, action: "LOGIN_FAILED", module: "AUTH", req, status: "FAILURE", severity: "MEDIUM", metadata: { reason: "INVALID_PASSWORD" } });
       return res.status(401).json({ success: false, message: "Invalid credentials." });
+    }
+
+    const approvalStatus = user.approvalStatus || "APPROVED";
+
+    if (approvalStatus !== "APPROVED") {
+      await SecurityService.recordLoginAttempt({
+        email,
+        ipAddress: ip,
+        userAgent: req.headers["user-agent"],
+        success: false,
+        failureReason: `ACCOUNT_${approvalStatus}`,
+        userId: user._id,
+      });
+
+      await AuditService.log({
+        user,
+        action: "LOGIN_FAILED",
+        module: "AUTH",
+        req,
+        status: "BLOCKED",
+        severity: "MEDIUM",
+        metadata: { reason: `ACCOUNT_${approvalStatus}` },
+      });
+
+      return res.status(403).json({
+        success: false,
+        message:
+          approvalStatus === "PENDING"
+            ? "Your account is pending admin approval."
+            : "Your account registration was rejected. Please contact admin.",
+      });
     }
 
     // Create session
@@ -224,9 +291,9 @@ const changePassword = async (req, res) => {
 
     user.password = newPassword;
     await user.save();
-    
+
     await AuditService.fromReq(req, { action: "PASSWORD_CHANGE", module: "AUTH", status: "SUCCESS", severity: "MEDIUM" });
-    
+
     res.json({ success: true, message: "Password changed successfully." });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
