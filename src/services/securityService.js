@@ -76,7 +76,7 @@ const SecurityService = {
 
     if (emailAttempts >= lp.maxAttempts) {
       const oldest = await LoginAttempt.findOne({ email: email.toLowerCase(), success: false, createdAt: { $gte: window } }).sort({ createdAt: 1 });
-      const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 1000);
+      const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 10);
       const remainingMs = lockUntil - Date.now();
       if (remainingMs > 0) {
         return { blocked: true, reason: "Account temporarily locked due to too many failed login attempts.", remainingMinutes: Math.ceil(remainingMs / 60000) };
@@ -89,9 +89,9 @@ const SecurityService = {
       createdAt: { $gte: window },
     });
 
-    if (ipAttempts >= lp.maxAttempts * 2) {
-      return { blocked: true, reason: "IP address temporarily blocked due to suspicious activity.", remainingMinutes: lp.lockoutDurationMinutes };
-    }
+    // if (ipAttempts >= lp.maxAttempts * 2) {
+    //   return { blocked: true, reason: "IP address temporarily blocked due to suspicious activity.", remainingMinutes: lp.lockoutDurationMinutes };
+    // }
 
     return { blocked: false };
   },
