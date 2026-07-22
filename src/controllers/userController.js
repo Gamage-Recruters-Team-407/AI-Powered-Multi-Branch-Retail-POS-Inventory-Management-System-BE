@@ -197,9 +197,13 @@ const updateUser = async (req, res) => {
     if (performanceScore !== undefined) user.performanceScore = performanceScore;
 
     // Password update safely hash manually
+    // if (password && password.trim() !== "") {
+    //   const salt = await bcrypt.genSalt(10);
+    //   user.password = await bcrypt.hash(password, salt);
+    // }
+
     if (password && password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
+      user.password = password;   // hook  hash 
     }
 
     // Approval status update
