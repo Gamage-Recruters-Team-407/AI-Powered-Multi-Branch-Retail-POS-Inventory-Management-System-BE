@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("../controllers/returnsController");
+const { protect } = require("../middleware/authMiddleware");
+
+router.use(protect);
 
 router.get("/invoices", controller.getInvoices);
 router.get("/invoices/:invoiceId", controller.getInvoiceById);
