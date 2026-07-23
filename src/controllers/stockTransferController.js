@@ -6,18 +6,18 @@ const Branch = require("../models/Branch");
 const Product = require("../models/Product");
 const AuditLog = require("../models/Auditlog");
 const {
-	isAdminRole,
-	isManagerRole,
-	getCreateTransferDenial,
-	getManagerPendingTransferDenial,
-	getDispatchTransferDenial,
-	getConfirmReceiptDenial,
-	getTransferActions,
-	getPermissionsForUser,
-	buildTransferScopeFilter,
-	buildMovementScopeFilter,
-	getTransferViewDenial,
-	getUserBranchIds,
+    isAdminRole,
+    isManagerRole,
+    getCreateTransferDenial,
+    getManagerPendingTransferDenial,
+    getDispatchTransferDenial,
+    getConfirmReceiptDenial,
+    getTransferActions,
+    getPermissionsForUser,
+    buildTransferScopeFilter,
+    buildMovementScopeFilter,
+    getTransferViewDenial,
+    getUserBranchIds,
 } = require("../utils/stockTransferPermissions");
 
 const parsePagination = (query) => {
@@ -300,40 +300,42 @@ const createTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: validationError });
         }
 
-        const availability = await checkStockAvailability(fromBranch, items);
-        if (!availability.available) {
-            return res.status(400).json({ success: false, message: availability.message });
+const availability = await checkStockAvailability(fromBranch, items);
+
+if (!availability.available) {
+    return res.status(400).json({
+        success: false,
+        message: availability.message
+    });
+}
+
+const transfer = await StockTransfer.create({
+    fromBranch,
+    toBranch,
+    items,
+    notes,
+    createdBy: req.user._id,
+    activityLogs: [
+        {
+            status: "PENDING",
+            note: "Transfer created",
+            changedBy: req.user._id
         }
+    ]
+});
 
-        const transfer = await StockTransfer.create({
-            fromBranch,
-            toBranch,
-            items,
-            notes,
-            createdBy: req.user._id,
-            activityLogs: [
-                {
-                    status: "PENDING",
-                    note: "Transfer created",
-                    changedBy: req.user._id
-                }
-            ]
-        });
+// Do not create the audit log manually here.
+// auditMiddleware logs this action as STOCK_TRANSFER_INITIATED.
 
-        await createAuditLog(req, "CREATE_TRANSFER", {
-            transferId: transfer._id,
-            fromBranch,
-            toBranch,
-            itemCount: items.length
-        });
+const populated = await StockTransfer.findById(transfer._id)
+    .populate("fromBranch", "name code")
+    .populate("toBranch", "name code")
+    .populate("items.product", "name sku barcode");
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(201).json({ success: true, data: populated });
+return res.status(201).json({
+    success: true,
+    data: populated
+});
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
