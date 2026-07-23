@@ -65,12 +65,7 @@ const protect = async (req, res, next) => {
       });
     }
 
-    /**
-     * Important:
-     * Old users may not have approvalStatus in MongoDB.
-     * We treat old users as APPROVED to avoid locking old admin accounts.
-     * New registered users will have approvalStatus: PENDING.
-     */
+    // ✅ APPROVAL STATUS CHECK - 403 error එන්නේ මෙතනින්
     const approvalStatus = user.approvalStatus || "APPROVED";
 
     if (approvalStatus !== "APPROVED") {
@@ -78,8 +73,9 @@ const protect = async (req, res, next) => {
         success: false,
         message:
           approvalStatus === "PENDING"
-            ? "Your account is pending admin approval."
+            ? "Your account is pending admin approval. Please wait for admin to approve your account."
             : "Your account registration was rejected. Please contact admin.",
+        approvalStatus: approvalStatus,
       });
     }
 
