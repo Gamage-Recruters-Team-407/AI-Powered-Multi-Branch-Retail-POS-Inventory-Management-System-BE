@@ -6,7 +6,7 @@ const warehouseTransactionSchema = new mongoose.Schema(
     warehouse:   { type: mongoose.Schema.Types.ObjectId, ref: "Warehouse", required: true },
     zone:        { type: mongoose.Schema.Types.ObjectId, ref: "WarehouseZone" },
     product:     { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
-    type:        { type: String, enum: ["IN", "OUT", "TRANSFER_IN", "TRANSFER_OUT", "ADJUSTMENT"], required: true },
+    type:        { type: String, enum: ["IN", "OUT", "TRANSFER_IN", "TRANSFER_OUT", "ADJUSTMENT", "DISPATCH"], required: true },
     quantity:    { type: Number, required: true },
     reference:   { type: String },   // e.g. Purchase Order ID, Transfer ID
     fromBranch:  { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
