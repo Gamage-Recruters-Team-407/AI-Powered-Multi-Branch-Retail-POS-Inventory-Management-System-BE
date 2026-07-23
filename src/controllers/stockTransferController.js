@@ -736,75 +736,86 @@ const approveTransfer = async (req, res) => {
 };
 
 const cancelTransfer = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const transfer = await StockTransfer.findById(req.params.id).session(session);
+        const transfer = await StockTransfer.findById(req.params.id);
         const { reason } = getRequestBody(req);
 
         if (!transfer) {
-            await session.abortTransaction();
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
-        if (["COMPLETED", "CANCELLED", "REJECTED"].includes(transfer.status)) {
-            await session.abortTransaction();
+        // Managers and admins may cancel only while the transfer is pending.
+        if (transfer.status !== "PENDING") {
             return res.status(400).json({
                 success: false,
-                message: `Transfer cannot be cancelled when status is ${transfer.status}.`
+                message: `Only PENDING transfers can be cancelled. Current status is ${transfer.status}.`
             });
         }
 
         if (isManagerRole(req.user.role)) {
-            const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+            const managerAccessError =
+                getManagerPendingTransferDenial(req.user, transfer);
+
             if (managerAccessError) {
-                await session.abortTransaction();
-                return res.status(403).json({ success: false, message: managerAccessError });
+                return res.status(403).json({
+                    success: false,
+                    message: managerAccessError
+                });
             }
         } else if (!isAdminRole(req.user.role)) {
-            await session.abortTransaction();
-            return res.status(403).json({ success: false, message: "Access denied for this role." });
-        } else if (transfer.status !== "PENDING") {
-            await session.abortTransaction();
-            return res.status(400).json({
+            return res.status(403).json({
                 success: false,
-                message: "Admins can only cancel transfers while they are pending review."
+                message: "Access denied for this role."
             });
         }
 
-        if (transfer.status === "IN_TRANSIT") {
-            await restoreSourceBranchStock(transfer, req.user._id, session);
-        }
+        const cancelReason =
+            typeof reason === "string" && reason.trim()
+                ? reason.trim()
+                : "Transfer cancelled";
 
         transfer.status = "CANCELLED";
         transfer.cancelledAt = new Date();
-        transfer.cancelReason = reason || "Transfer cancelled";
-        pushActivityLog(transfer, "CANCELLED", transfer.cancelReason, req.user._id);
+        transfer.cancelReason = cancelReason;
 
-        await transfer.save({ session });
-        await session.commitTransaction();
+        pushActivityLog(
+            transfer,
+            "CANCELLED",
+            cancelReason,
+            req.user._id
+        );
 
-        await createAuditLog(req, "CANCEL_TRANSFER", {
-            transferId: transfer._id,
-            reason: transfer.cancelReason
-        });
+        await transfer.save();
 
+        // Do not manually call createAuditLog().
+        // auditMiddleware handles the audit asynchronously.
 
         const populated = await StockTransfer.findById(transfer._id)
             .populate("fromBranch", "name code")
             .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
+            .populate("items.product", "name sku barcode")
+            .populate(
+                "activityLogs.changedBy",
+                "firstName lastName email role"
+            );
 
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({
+            success: true,
+            message: "Transfer cancelled successfully.",
+            data: populated
+        });
     } catch (error) {
-        await session.abortTransaction();
-        return res.status(500).json({ success: false, message: error.message });
-    } finally {
-        session.endSession();
+        console.error("Cancel stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to cancel stock transfer."
+        });
     }
 };
-
 /** Admin progress tracking: reject a pending transfer request */
 const rejectTransfer = async (req, res) => {
     try {

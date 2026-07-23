@@ -77,6 +77,13 @@ const ROUTE_MAP = [
     action: "STOCK_TRANSFER_COMPLETED",
     module: "STOCK_TRANSFER"
   },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/cancel$/,
+    method: "PATCH",
+    action: "UPDATE",
+    module: "STOCK_TRANSFER"
+  },
+
   // Purchase Orders
   { pattern: /^\/api\/purchase-orders$/, method: "POST", action: "PURCHASE_ORDER_CREATED", module: "PURCHASE_ORDER" },
   { pattern: /^\/api\/purchase-orders\/[^/]+\/approve/, method: "POST", action: "PURCHASE_ORDER_APPROVED", module: "PURCHASE_ORDER" },
