@@ -300,42 +300,42 @@ const createTransfer = async (req, res) => {
             return res.status(400).json({ success: false, message: validationError });
         }
 
-const availability = await checkStockAvailability(fromBranch, items);
+        const availability = await checkStockAvailability(fromBranch, items);
 
-if (!availability.available) {
-    return res.status(400).json({
-        success: false,
-        message: availability.message
-    });
-}
-
-const transfer = await StockTransfer.create({
-    fromBranch,
-    toBranch,
-    items,
-    notes,
-    createdBy: req.user._id,
-    activityLogs: [
-        {
-            status: "PENDING",
-            note: "Transfer created",
-            changedBy: req.user._id
+        if (!availability.available) {
+            return res.status(400).json({
+                success: false,
+                message: availability.message
+            });
         }
-    ]
-});
 
-// Do not create the audit log manually here.
-// auditMiddleware logs this action as STOCK_TRANSFER_INITIATED.
+        const transfer = await StockTransfer.create({
+            fromBranch,
+            toBranch,
+            items,
+            notes,
+            createdBy: req.user._id,
+            activityLogs: [
+                {
+                    status: "PENDING",
+                    note: "Transfer created",
+                    changedBy: req.user._id
+                }
+            ]
+        });
 
-const populated = await StockTransfer.findById(transfer._id)
-    .populate("fromBranch", "name code")
-    .populate("toBranch", "name code")
-    .populate("items.product", "name sku barcode");
+        // Do not create the audit log manually here.
+        // auditMiddleware logs this action as STOCK_TRANSFER_INITIATED.
 
-return res.status(201).json({
-    success: true,
-    data: populated
-});
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(201).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -393,18 +393,27 @@ const updateTransfer = async (req, res) => {
             transfer.notes = notes;
         }
 
-        pushActivityLog(transfer, "PENDING", "Transfer updated", req.user._id);
+        pushActivityLog(
+            transfer,
+            "PENDING",
+            "Transfer updated",
+            req.user._id
+        );
+
         await transfer.save();
 
-        await createAuditLog(req, "UPDATE_TRANSFER", { transferId: transfer._id });
-
+        // Manual audit removed.
+        // auditMiddleware will record this update.
 
         const populated = await StockTransfer.findById(transfer._id)
             .populate("fromBranch", "name code")
             .populate("toBranch", "name code")
             .populate("items.product", "name sku barcode");
 
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -428,7 +437,24 @@ const deleteTransfer = async (req, res) => {
         }
 
         await StockTransfer.deleteOne({ _id: transfer._id });
-        await createAuditLog(req, "DELETE_TRANSFER", { transferId: transfer._id });
+        pushActivityLog(
+            transfer,
+            "PENDING",
+            "Transfer updated",
+            req.user._id
+        );
+
+        await transfer.save();
+
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
 
         return res.status(200).json({ success: true, message: "Transfer deleted successfully." });
     } catch (error) {

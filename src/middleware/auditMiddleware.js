@@ -35,10 +35,30 @@ const ROUTE_MAP = [
   { pattern: /^\/api\/returns/, method: "POST", action: "REFUND_PROCESSED", module: "RETURN" },
 
   // Stock transfers
-  { pattern: /^\/api\/stock-transfers$/, method: "POST", action: "STOCK_TRANSFER_INITIATED", module: "STOCK_TRANSFER" },
-  { pattern: /^\/api\/stock-transfers\/[^/]+\/approve/, method: "POST", action: "STOCK_TRANSFER_APPROVED", module: "STOCK_TRANSFER" },
-  { pattern: /^\/api\/stock-transfers\/[^/]+\/reject/, method: "POST", action: "STOCK_TRANSFER_REJECTED", module: "STOCK_TRANSFER" },
-
+  {
+    pattern: /^\/api\/stock-transfers$/,
+    method: "POST",
+    action: "STOCK_TRANSFER_INITIATED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+$/,
+    method: "PUT",
+    action: "UPDATE",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/approve$/,
+    method: "POST",
+    action: "STOCK_TRANSFER_APPROVED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/reject$/,
+    method: "POST",
+    action: "STOCK_TRANSFER_REJECTED",
+    module: "STOCK_TRANSFER"
+  },
   // Purchase Orders
   { pattern: /^\/api\/purchase-orders$/, method: "POST", action: "PURCHASE_ORDER_CREATED", module: "PURCHASE_ORDER" },
   { pattern: /^\/api\/purchase-orders\/[^/]+\/approve/, method: "POST", action: "PURCHASE_ORDER_APPROVED", module: "PURCHASE_ORDER" },
@@ -106,7 +126,7 @@ const auditMiddleware = (options = {}) => {
       setImmediate(async () => {
         try {
           const status = res.statusCode >= 400 ? "FAILURE" : "SUCCESS";
-          
+
           // ✅ Pass full user object including all details
           await AuditService.log({
             user: req.user || null,
