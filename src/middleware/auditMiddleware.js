@@ -48,15 +48,33 @@ const ROUTE_MAP = [
     module: "STOCK_TRANSFER"
   },
   {
+    pattern: /^\/api\/stock-transfers\/[^/]+$/,
+    method: "DELETE",
+    action: "DELETE",
+    module: "STOCK_TRANSFER"
+  },
+  {
     pattern: /^\/api\/stock-transfers\/[^/]+\/approve$/,
-    method: "POST",
+    method: "PATCH",
     action: "STOCK_TRANSFER_APPROVED",
     module: "STOCK_TRANSFER"
   },
   {
     pattern: /^\/api\/stock-transfers\/[^/]+\/reject$/,
-    method: "POST",
+    method: "PATCH",
     action: "STOCK_TRANSFER_REJECTED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/dispatch$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_DISPATCHED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/complete$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_COMPLETED",
     module: "STOCK_TRANSFER"
   },
   // Purchase Orders
