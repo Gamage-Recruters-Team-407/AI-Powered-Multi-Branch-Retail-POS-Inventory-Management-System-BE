@@ -2,6 +2,7 @@ const path = require('path');
 const dns = require('dns');
 const http = require('http');
 const { Server } = require('socket.io');
+const axios = require('axios');
 
 // Load environment variables early with full path resolve
 require('dotenv').config({
@@ -42,7 +43,7 @@ server.on('error', (error) => {
 // ── Socket.io Setup with CORS configs ──────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: true, // Dynamically allow calling origins (localhost, .vercel.app, etc.)
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     credentials: true,
   },
@@ -72,15 +73,15 @@ const startBackgroundServices = async (dbConnection) => {
   }
 
   try {
-    // Seed essential employees if required
-    const seedEmployees = require('./utils/seedEmployees');
-    await seedEmployees();
-    
     // Start standard cron jobs
     initInventoryAlertJob();
 
     // Start Part 21 Security Scan jobs
     startSecurityJobs();
+
+    // Seed missing inventory records automatically on startup
+    const { seedMissingInventories } = require('./services/inventoryService');
+    await seedMissingInventories();
 
     console.log('✅ All Background Services & Startup Jobs Initialized.');
   } catch (serviceError) {
@@ -95,6 +96,28 @@ server.listen(PORT, async () => {
   console.log(`   Running Environment : ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Listening Port      : ${PORT}`);
   console.log(`   Healthcheck Route   : http://localhost:${PORT}/api/health`);
+  
+  try {
+    const mlUrl = process.env.FLASK_API_URL || 'http://localhost:5001';
+    const mlResponse = await axios.get(`${mlUrl}/health`, { timeout: 3000 });
+    if (mlResponse.data && mlResponse.data.status === 'healthy') {
+      console.log(`   ML Service          : Connected (${mlUrl})`);
+      if (mlResponse.data.mongodb_status === 'connected') {
+        console.log(`   Data Source         : MongoDB Live Connected`);
+      } else if (mlResponse.data.model_loaded) {
+        console.log(`   Model Status        : Loaded (recommendation_model.pkl)`);
+      } else if (mlResponse.data.model_loaded === false) {
+        console.log(`   Model Status        : Not Loaded (recommendation_model.pkl missing)`);
+      } else {
+        console.log(`   Data Source         : Unknown or Disconnected`);
+      }
+    } else {
+      console.log(`   ML Service          : Unreachable (${mlUrl})`);
+    }
+  } catch (error) {
+    console.log(`   ML Service          : Disconnected (${process.env.FLASK_API_URL || 'http://localhost:5001'})`);
+  }
+  
   console.log('================================================================');
 
   // Establish DB connection first

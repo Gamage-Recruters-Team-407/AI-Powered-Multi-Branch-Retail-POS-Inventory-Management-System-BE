@@ -16,6 +16,10 @@ const productSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "Category"
     },
+    categoryName: {
+        type: String,
+        trim: true
+    },
 
     supplier: {
         type: mongoose.Schema.Types.ObjectId,

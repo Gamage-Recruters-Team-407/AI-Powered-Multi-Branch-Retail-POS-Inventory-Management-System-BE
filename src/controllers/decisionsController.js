@@ -24,8 +24,11 @@ exports.createPurchaseOrder = async (req, res) => {
 
 exports.sendOffer = async (req, res) => {
   try {
-    const { customerId, offerDetails } = req.body;
-    const result = await decisionService.sendOffer(customerId, offerDetails);
+    const { productId, discountValue, endDate } = req.body;
+    if (!productId || !discountValue) {
+      return res.status(400).json({ success: false, message: 'productId and discountValue are required' });
+    }
+    const result = await decisionService.sendOffer(productId, discountValue, endDate);
     res.json(result);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -34,8 +37,11 @@ exports.sendOffer = async (req, res) => {
 
 exports.reorder = async (req, res) => {
   try {
-    const { productId, quantity } = req.body;
-    const result = await decisionService.triggerReorder(productId, quantity);
+    const { productId, branchId, quantity } = req.body;
+    if (!productId || !branchId || quantity === undefined || quantity === null || Number(quantity) <= 0) {
+      return res.status(400).json({ success: false, message: 'productId, branchId, and a positive quantity are required' });
+    }
+    const result = await decisionService.triggerReorder(productId, branchId, quantity);
     res.json(result);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

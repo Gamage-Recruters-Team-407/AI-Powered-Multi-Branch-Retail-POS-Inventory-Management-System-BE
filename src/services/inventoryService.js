@@ -24,9 +24,8 @@ const calculateStockAfterMovement = (currentStock, quantityChange) => {
  * @param {number} reorderLevel - The threshold for low stock alert
  * @returns {boolean} True if stock is low, false otherwise
  */
-const validateReorderPoint = (currentQuantity, reorderLevel) => {
-    if (typeof reorderLevel !== "number") return false;
-    return currentQuantity <= reorderLevel;
+const validateReorderPoint = (currentQuantity) => {
+    return currentQuantity < 50;
 };
 
 /**
@@ -75,7 +74,7 @@ const updateInventoryStock = async (
     // 4. Update the inventory quantity and low‑stock flag
     inventory.quantity = newQuantity;
     
-    const isLowStock = validateReorderPoint(newQuantity, product.reorderLevel);
+    const isLowStock = validateReorderPoint(newQuantity);
     inventory.lowStockAlert = isLowStock;
 
     if (session) {
@@ -115,8 +114,55 @@ const updateInventoryStock = async (
     };
 };
 
+/**
+ * Automatically inspects the database to ensure all products have inventory records for all branches.
+ */
+const seedMissingInventories = async () => {
+    try {
+        const Product = require("../models/Product");
+        const Branch = require("../models/Branch");
+        const Inventory = require("../models/Inventory");
+
+        const products = await Product.find({});
+        const branches = await Branch.find({});
+
+        if (products.length === 0 || branches.length === 0) {
+            return;
+        }
+
+        let createdCount = 0;
+
+        for (const product of products) {
+            for (const branch of branches) {
+                const existing = await Inventory.findOne({
+                    product: product._id,
+                    branch: branch._id
+                });
+
+                if (!existing) {
+                    await Inventory.create({
+                        product: product._id,
+                        branch: branch._id,
+                        quantity: 0,
+                        reservedStock: 0,
+                        lowStockAlert: false
+                    });
+                    createdCount++;
+                }
+            }
+        }
+
+        if (createdCount > 0) {
+            console.log(`[Inventory Seeder] Created ${createdCount} missing inventory records on startup.`);
+        }
+    } catch (err) {
+        console.error("Error seeding missing inventories on startup:", err.message);
+    }
+};
+
 module.exports = {
     calculateStockAfterMovement,
     validateReorderPoint,
-    updateInventoryStock
+    updateInventoryStock,
+    seedMissingInventories
 };
