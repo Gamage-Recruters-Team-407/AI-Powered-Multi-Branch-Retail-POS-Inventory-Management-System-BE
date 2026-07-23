@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const decisionsController = require('../controllers/decisionsController');
+const { protect } = require('../middleware/authMiddleware');
+
+router.use(protect);
 
 router.get('/suggestions', decisionsController.getSuggestions);
 router.post('/create-po', decisionsController.createPurchaseOrder);
