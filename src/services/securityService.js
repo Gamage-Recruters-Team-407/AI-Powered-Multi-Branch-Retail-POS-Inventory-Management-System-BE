@@ -33,6 +33,31 @@ const SecurityService = {
       name: "default",
       description: "System default security policy",
       isActive: true,
+      ipPolicy: {
+        enableBlacklist: true,
+        blacklist: [],
+        enableWhitelist: false,
+        whitelist: [],
+      },
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireLowercase: true,
+        requireNumbers: true,
+        requireSpecialChars: true,
+        preventReuse: 5,
+        expireAfterDays: 90,
+      },
+      lockoutPolicy: {
+        enabled: true,
+        maxAttempts: 20, // ✅ 20 failed attempts  block 
+        lockoutDurationMinutes: 30,
+        resetAfterMinutes: 15,
+      },
+      auditPolicy: {
+        retentionDays: 730,
+        logLevel: "INFO",
+      },
     });
     await def.save();
     return def.toObject();
@@ -61,6 +86,7 @@ const SecurityService = {
     return attempt;
   },
 
+  // ✅ 20 failed attempts check  function 
   async checkBruteForce(email, ipAddress) {
     const policy = await SecurityService.getActivePolicy();
     const lp = policy.lockoutPolicy;
@@ -74,15 +100,28 @@ const SecurityService = {
       createdAt: { $gte: window },
     });
 
+    // ✅ 20 failed attempts block 
     if (emailAttempts >= lp.maxAttempts) {
-      const oldest = await LoginAttempt.findOne({ email: email.toLowerCase(), success: false, createdAt: { $gte: window } }).sort({ createdAt: 1 });
+      const oldest = await LoginAttempt.findOne({ 
+        email: email.toLowerCase(), 
+        success: false, 
+        createdAt: { $gte: window } 
+      }).sort({ createdAt: 1 });
+      
       const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 1000);
       const remainingMs = lockUntil - Date.now();
+      
       if (remainingMs > 0) {
-        return { blocked: true, reason: "Account temporarily locked due to too many failed login attempts.", remainingMinutes: Math.ceil(remainingMs / 60000) };
+        return { 
+          blocked: true, 
+          reason: `Account temporarily locked due to ${emailAttempts} failed login attempts.`, 
+          remainingMinutes: Math.ceil(remainingMs / 60000),
+          failedAttempts: emailAttempts
+        };
       }
     }
 
+    // ✅ IP-based check - 2x attempts (40)
     const ipAttempts = await LoginAttempt.countDocuments({
       ipAddress,
       success: false,
@@ -90,10 +129,60 @@ const SecurityService = {
     });
 
     if (ipAttempts >= lp.maxAttempts * 2) {
-      return { blocked: true, reason: "IP address temporarily blocked due to suspicious activity.", remainingMinutes: lp.lockoutDurationMinutes };
+      return { 
+        blocked: true, 
+        reason: `IP address temporarily blocked due to ${ipAttempts} suspicious activities.`, 
+        remainingMinutes: lp.lockoutDurationMinutes,
+        failedAttempts: ipAttempts
+      };
     }
 
-    return { blocked: false };
+    return { 
+      blocked: false,
+      failedAttempts: emailAttempts,
+      remainingAttempts: Math.max(0, lp.maxAttempts - emailAttempts)
+    };
+  },
+
+  // ✅ IP Blacklist check - 403 error 
+  async isIPAllowed(ipAddress) {
+    const policy = await SecurityService.getActivePolicy();
+    const { ipPolicy } = policy;
+
+    // ✅ Blacklist check
+    if (ipPolicy.enableBlacklist && ipPolicy.blacklist?.includes(ipAddress)) {
+      return { allowed: false, reason: "IP is blacklisted" };
+    }
+    if (ipPolicy.enableWhitelist && ipPolicy.whitelist?.length > 0 && !ipPolicy.whitelist.includes(ipAddress)) {
+      return { allowed: false, reason: "IP not in whitelist" };
+    }
+    return { allowed: true };
+  },
+
+  // ✅ Blacklist  IP  add function - 403 
+  async addToBlacklist(ipAddress, updatedBy) {
+    const policy = await SecurityPolicy.findOne({ isActive: true });
+    if (!policy.ipPolicy.blacklist.includes(ipAddress)) {
+      policy.ipPolicy.blacklist.push(ipAddress);
+      await policy.save();
+      SecurityService.invalidatePolicyCache();
+      await AuditService.log({
+        user: updatedBy,
+        action: "SECURITY_POLICY_UPDATED",
+        module: "SECURITY",
+        severity: "HIGH",
+        metadata: { change: "IP_BLACKLISTED", ipAddress },
+      });
+    }
+    return policy;
+  },
+
+  async removeFromBlacklist(ipAddress, updatedBy) {
+    const policy = await SecurityPolicy.findOne({ isActive: true });
+    policy.ipPolicy.blacklist = policy.ipPolicy.blacklist.filter((ip) => ip !== ipAddress);
+    await policy.save();
+    SecurityService.invalidatePolicyCache();
+    return policy;
   },
 
   async detectSuspiciousActivity() {
@@ -123,44 +212,6 @@ const SecurityService = {
     }
 
     return flags;
-  },
-
-  async isIPAllowed(ipAddress) {
-    const policy = await SecurityService.getActivePolicy();
-    const { ipPolicy } = policy;
-
-    if (ipPolicy.enableBlacklist && ipPolicy.blacklist?.includes(ipAddress)) {
-      return { allowed: false, reason: "IP is blacklisted" };
-    }
-    if (ipPolicy.enableWhitelist && ipPolicy.whitelist?.length > 0 && !ipPolicy.whitelist.includes(ipAddress)) {
-      return { allowed: false, reason: "IP not in whitelist" };
-    }
-    return { allowed: true };
-  },
-
-  async addToBlacklist(ipAddress, updatedBy) {
-    const policy = await SecurityPolicy.findOne({ isActive: true });
-    if (!policy.ipPolicy.blacklist.includes(ipAddress)) {
-      policy.ipPolicy.blacklist.push(ipAddress);
-      await policy.save();
-      SecurityService.invalidatePolicyCache();
-      await AuditService.log({
-        user: updatedBy,
-        action: "SECURITY_POLICY_UPDATED",
-        module: "SECURITY",
-        severity: "HIGH",
-        metadata: { change: "IP_BLACKLISTED", ipAddress },
-      });
-    }
-    return policy;
-  },
-
-  async removeFromBlacklist(ipAddress, updatedBy) {
-    const policy = await SecurityPolicy.findOne({ isActive: true });
-    policy.ipPolicy.blacklist = policy.ipPolicy.blacklist.filter((ip) => ip !== ipAddress);
-    await policy.save();
-    SecurityService.invalidatePolicyCache();
-    return policy;
   },
 
   async generateComplianceReport({ startDate, endDate, branch } = {}) {
