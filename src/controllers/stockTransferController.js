@@ -618,8 +618,10 @@ const approveTransfer = async (req, res) => {
         }
 
         const now = new Date();
+
         transfer.status = "APPROVED";
         transfer.approvedAt = now;
+
         pushActivityLog(
             transfer,
             "APPROVED",
@@ -629,14 +631,18 @@ const approveTransfer = async (req, res) => {
 
         await transfer.save();
 
-        await createAuditLog(req, "APPROVE_TRANSFER", { transferId: transfer._id });
+        // Manual audit logging removed.
+        // auditMiddleware handles this request asynchronously.
 
         const populated = await StockTransfer.findById(transfer._id)
             .populate("fromBranch", "name code")
             .populate("toBranch", "name code")
             .populate("items.product", "name sku barcode");
 
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
