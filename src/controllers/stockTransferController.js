@@ -421,44 +421,65 @@ const updateTransfer = async (req, res) => {
 
 const deleteTransfer = async (req, res) => {
     try {
-        const transfer = await StockTransfer.findById(req.params.id);
+        // lean() returns a plain object, not a Mongoose document.
+        // Therefore, it cannot later run transfer.save().
+        const transfer = await StockTransfer.findById(req.params.id).lean();
 
         if (!transfer) {
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
         if (transfer.status !== "PENDING") {
-            return res.status(400).json({ success: false, message: "Only PENDING transfers can be deleted." });
+            return res.status(400).json({
+                success: false,
+                message: "Only PENDING transfers can be deleted."
+            });
         }
 
-        const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
-        if (managerAccessError) {
-            return res.status(403).json({ success: false, message: managerAccessError });
-        }
-
-        await StockTransfer.deleteOne({ _id: transfer._id });
-        pushActivityLog(
-            transfer,
-            "PENDING",
-            "Transfer updated",
-            req.user._id
+        const managerAccessError = getManagerPendingTransferDenial(
+            req.user,
+            transfer
         );
 
-        await transfer.save();
+        if (managerAccessError) {
+            return res.status(403).json({
+                success: false,
+                message: managerAccessError
+            });
+        }
 
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
+        // Delete only if the record is still PENDING and unchanged.
+        const deleteResult = await StockTransfer.deleteOne({
+            _id: transfer._id,
+            status: "PENDING",
+            __v: transfer.__v
+        });
+
+        if (deleteResult.deletedCount !== 1) {
+            return res.status(409).json({
+                success: false,
+                message:
+                    "Transfer was changed by another request. Refresh and try again."
+            });
+        }
+
+        // No manual createAuditLog() call here.
+        // auditMiddleware handles the DELETE audit asynchronously.
 
         return res.status(200).json({
             success: true,
-            data: populated
+            message: "Transfer deleted successfully."
         });
-
-        return res.status(200).json({ success: true, message: "Transfer deleted successfully." });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        console.error("Delete stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to delete stock transfer."
+        });
     }
 };
 
