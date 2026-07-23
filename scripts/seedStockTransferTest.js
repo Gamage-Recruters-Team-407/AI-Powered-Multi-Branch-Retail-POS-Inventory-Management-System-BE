@@ -64,8 +64,16 @@ async function main() {
 
   console.log('\n--- Stock transfer test seed ---\n');
 
+  const branchHQ = await upsertBranch({ code: 'BR-HQ', name: 'Main HQ', city: 'Colombo' });
   const branchA = await upsertBranch({ code: 'BR-A', name: 'Branch Alpha', city: 'Colombo' });
   const branchB = await upsertBranch({ code: 'BR-B', name: 'Branch Beta', city: 'Kandy' });
+  const branchHoma = await upsertBranch({ code: 'HH-001', name: 'homagama', city: 'homagama' });
+  const branchKott = await upsertBranch({ code: 'KT-001', name: 'kottawa', city: 'kottawa' });
+  const branchKalu = await upsertBranch({ code: 'K-001', name: 'kaluthara', city: 'kaluthara' });
+  const branchAnur = await upsertBranch({ code: 'AP-001', name: 'Anuradhapura', city: 'Anuradhapura' });
+  const branchAmp = await upsertBranch({ code: 'DT-0002', name: 'Ampara', city: 'kalmunai' });
+  const branchGamp = await upsertBranch({ code: 'gp-991', name: 'gampaha', city: 'gampaha' });
+  const branchPana = await upsertBranch({ code: 'PD-001', name: 'Panadura', city: 'Panadura' });
 
   let product = await Product.findOne({ barcode: 'SEED-ST-001' });
   if (!product) {

@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Employee = require("../models/Employee");
+const Employee = require("../models/User");
 const User = require("../models/User");
 const EmployeeSchedule = require("../models/EmployeeSchedule");
 const EmployeeAttendance = require("../models/EmployeeAttendance");
@@ -47,7 +47,25 @@ const getAllEmployees = async (req, res) => {
         return res.status(200).json({ success: true, employees: [] });
     }
     try {
-        const employees = await Employee.find().populate('branch', 'name');
+        const users = await Employee.find().populate('branch', 'name');
+
+        const mappedEmployees = users.map(user => ({
+            _id: user._id,
+            employeeId: user._id.toString(),
+            firstName: user.firstName || user.name || "Unnamed",
+            lastName: user.lastName || "",
+            name: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+            email: user.email,
+            phone: user.phone || "No Phone",
+            role: user.role || "user",
+            branch: user.branch,
+            status: user.isActive ? "Active" : "Inactive",
+            salary: user.salary || 0,
+            joiningDate: user.joiningDate || null,
+            createdAt: user.createdAt,
+            workingStatus: user.workingStatus || "Off Duty",
+            performanceScore: user.performanceScore || 0.0
+        }));
 
         const roleOrder = {
             'admin': 1,
@@ -55,7 +73,7 @@ const getAllEmployees = async (req, res) => {
             'cashier': 3
         };
 
-        const sortedEmployees = employees.sort((a, b) => {
+        const sortedEmployees = mappedEmployees.sort((a, b) => {
             const roleA = (a.role || '').toLowerCase();
             const roleB = (b.role || '').toLowerCase();
             return (roleOrder[roleA] || 99) - (roleOrder[roleB] || 99);
@@ -79,19 +97,33 @@ const getAllEmployees = async (req, res) => {
 // @access  Public
 const getEmployeeById = async (req, res) => {
     try {
-        let employee = await Employee.findById(req.params.id);
-        if (!employee) {
-            employee = await Employee.findOne({ employeeId: req.params.id });
-        }
-        if (!employee) {
+        const user = await Employee.findById(req.params.id).populate('branch', 'name');
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Employee not found."
             });
         }
+        const mappedEmployee = {
+            _id: user._id,
+            employeeId: user._id.toString(),
+            firstName: user.firstName || user.name || "Unnamed",
+            lastName: user.lastName || "",
+            name: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+            email: user.email,
+            phone: user.phone || "No Phone",
+            role: user.role || "user",
+            branch: user.branch,
+            status: user.isActive ? "Active" : "Inactive",
+            salary: user.salary || 0,
+            joiningDate: user.joiningDate || null,
+            createdAt: user.createdAt,
+            workingStatus: user.workingStatus || "Off Duty",
+            performanceScore: user.performanceScore || 0.0
+        };
         return res.status(200).json({
             success: true,
-            employee
+            employee: mappedEmployee
         });
     } catch (error) {
         return res.status(500).json({
@@ -106,219 +138,10 @@ const getEmployeeById = async (req, res) => {
 // @route   POST /api/employees
 // @access  Public
 const addEmployee = async (req, res) => {
-    try {
-        const {
-            firstName,
-            lastName,
-            email,
-            phone,
-            role,
-            branch,
-            salary,
-            hireDate,
-            photo
-        } = req.body;
-
-        // Validation
-        if (!firstName || !lastName || !email || !phone) {
-            return res.status(400).json({
-                success: false,
-                message: "First name, last name, email, and phone number are required."
-            });
-        }
-
-        const emailClean = email.trim().toLowerCase();
-
-        // Check for existing employee with same email
-        const existingEmp = await Employee.findOne({ email: emailClean });
-        if (existingEmp) {
-            return res.status(400).json({
-                success: false,
-                message: "An employee with this email address is already registered."
-            });
-        }
-
-        // Validate names
-        const nameRegex = /^[a-zA-Z\s\-']{2,50}$/;
-        if (!nameRegex.test(firstName.trim()) || !nameRegex.test(lastName.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: "First name and last name must be 2-50 characters and contain only letters."
-            });
-        }
-
-        // Validate email
-        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        if (!emailRegex.test(emailClean)) {
-            return res.status(400).json({
-                success: false,
-                message: "Please provide a valid email address."
-            });
-        }
-
-        // Validate phone number
-        const cleanPhone = phone.replace(/[\s\-\(\)]/g, "");
-        if (!/^(?:\+94|0)?7[0-9]{8}$/.test(cleanPhone)) {
-            return res.status(400).json({
-                success: false,
-                message: "Please provide a valid Sri Lankan mobile number."
-            });
-        }
-
-        // Validate salary
-        if (salary !== undefined && Number(salary) <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Salary must be a positive number above 0."
-            });
-        }
-
-        // Validate hire date
-        if (hireDate) {
-            const inputDate = new Date(hireDate);
-            if (isNaN(inputDate.getTime())) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Hire date must be a valid date."
-                });
-            }
-        }
-
-        // Validate photo URL (only if no file was uploaded)
-        if (!req.file && photo && photo.trim()) {
-            const isDataUri = photo.trim().startsWith('data:image/');
-            const urlRegex = /^(https?:\/\/|\/?uploads\/).*\.(?:png|jpg|jpeg|gif|webp)/i;
-            if (!isDataUri && !urlRegex.test(photo.trim())) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Photo must be a valid image URL (ending in .png, .jpg, .jpeg, or .webp) or relative path."
-                });
-            }
-        }
-
-        let imageUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop";
-
-        if (req.file) {
-            const base64Image = req.file.buffer.toString("base64");
-            const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
-
-            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
-                try {
-                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                        folder: "retail_pos_employees"
-                    });
-                    imageUrl = uploadedImage.secure_url;
-                } catch (uploadErr) {
-                    console.error("Cloudinary upload failed, falling back to local file storage:", uploadErr.message);
-                    imageUrl = saveLocalFile(req);
-                }
-            } else {
-                console.log("Cloudinary credentials not configured. Saving to local file storage fallback.");
-                imageUrl = saveLocalFile(req);
-            }
-        } else if (photo && photo.trim()) {
-            imageUrl = photo;
-        }
-
-        const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
-
-        let branchName = "";
-        if (validBranch) {
-            const branchDoc = await Branch.findById(validBranch);
-            branchName = branchDoc ? branchDoc.name : "";
-        }
-
-        // Define the role to use (defaults to input or CASHIER)
-        let employeeRole = role ? role.toUpperCase() : "CASHIER";
-
-        // Step 1: Fetch corresponding User login record or create one if it doesn't exist
-        let authUser = await User.findOne({ email: emailClean });
-        if (!authUser) {
-            authUser = await User.create({
-                firstName,
-                lastName,
-                name: `${firstName} ${lastName}`.trim(),
-                email: emailClean,
-                password: "tempPassword123", // Default login password
-                phone,
-                role: employeeRole,
-                branch: validBranch,
-                isActive: true
-            });
-        } else {
-            // Fix: Prioritize and keep the existing user's role (do not demote them)
-            employeeRole = authUser.role || employeeRole;
-            
-            // Only update branch if provided
-            if (validBranch) authUser.branch = validBranch;
-            await authUser.save();
-        }
-
-        // Generate unique employee ID
-        const employeeId = `EMP-${Date.now().toString().slice(-6)}`;
-
-        // Step 2: Create Employee record linked to User
-        const newEmployee = await Employee.create({
-            user: authUser._id,
-            employeeId,
-            firstName,
-            lastName,
-            email: emailClean,
-            phone,
-            role: employeeRole,
-            salary: salary || 40000,
-            branch: validBranch,
-            branchName: branchName, 
-            joiningDate: hireDate || new Date(),
-            photo: imageUrl,
-            status: "Active",
-            performanceScore: 0.0,
-            workingStatus: "Off Duty"
-        });
-
-
-
-        // ✅ Add Audit Log
-        await AuditService.log({
-            user: req.user || authUser,
-            action: "CREATE",
-            module: "EMPLOYEE",
-            req,
-            status: "SUCCESS",
-            resourceType: "Employee",
-            resourceId: newEmployee._id,
-            resourceName: `${firstName} ${lastName}`,
-            metadata: {
-                employeeId: newEmployee.employeeId,
-                role: employeeRole,
-                branch: branchName
-            },
-            branch: validBranch,
-            branchName: branchName,
-        });
-
-        // Trigger a notification
-        systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' },
-            category: 'EMPLOYEE',
-            type: 'INFO',
-            title: 'New Employee Hired',
-            message: `${firstName} ${lastName} has been hired as a ${role} at Branch ${branch}.`,
-            channels: ['in-app', 'email']
-        });
-
-        return res.status(201).json({
-            success: true,
-            employee: newEmployee,
-            message: "Employee registered successfully"
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to register employee.",
-            error: error.message
-        });
-    }
+    return res.status(400).json({
+        success: false,
+        message: "Adding employees directly is disabled. Please create users via User Management instead."
+    });
 };
 
 // @desc    Update employee details
@@ -334,181 +157,70 @@ const updateEmployee = async (req, res) => {
             role,
             branch,
             salary,
-            hireDate,
-            photo,
             status,
-            workingStatus
+            workingStatus,
+            joiningDate,
+            hireDate
         } = req.body;
 
-        let employee = await Employee.findById(req.params.id);
-        
-        // Fallback for custom string employee IDs
-        if (!employee) {
-            employee = await Employee.findOne({ employeeId: req.params.id });
-        }
-
-        if (!employee) {
+        const user = await Employee.findById(req.params.id);
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Employee not found."
             });
         }
 
-        const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
-
-        // Save old values for audit
         const oldValues = {
-            firstName: employee.firstName,
-            lastName: employee.lastName,
-            email: employee.email,
-            phone: employee.phone,
-            role: employee.role,
-            branch: employee.branch,
-            salary: employee.salary,
-            status: employee.status
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            role: user.role,
+            branch: user.branch,
+            salary: user.salary,
+            status: user.isActive ? "Active" : "Inactive"
         };
 
-        // Validate updates if provided
-        const nameRegex = /^[a-zA-Z\s\-']{2,50}$/;
-        if (firstName !== undefined && !nameRegex.test(firstName.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: "First name must be 2-50 characters and contain only letters."
-            });
-        }
-        if (lastName !== undefined && !nameRegex.test(lastName.trim())) {
-            return res.status(400).json({
-                success: false,
-                message: "Last name must be 2-50 characters and contain only letters."
-            });
-        }
-        if (email !== undefined) {
-            const emailClean = email.trim().toLowerCase();
-            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            if (!emailRegex.test(emailClean)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Please provide a valid email address."
-                });
-            }
+        const validBranch = (branch && mongoose.Types.ObjectId.isValid(branch)) ? branch : undefined;
 
-            const existingUser = await User.findOne({ 
-                email: emailClean, 
-                _id: { $ne: employee.user } 
-            });
-            const existingEmp = await Employee.findOne({ 
-                email: emailClean, 
-                _id: { $ne: employee._id } 
-            });
-            if (existingUser || existingEmp) {
-                return res.status(400).json({
-                    success: false,
-                    message: "An employee with this email address is already registered."
-                });
-            }
+        if (firstName !== undefined) user.firstName = firstName;
+        if (lastName !== undefined) user.lastName = lastName;
+        if (firstName !== undefined || lastName !== undefined) {
+            user.name = `${firstName || user.firstName || ""} ${lastName || user.lastName || ""}`.trim();
         }
-        if (phone !== undefined) {
-            const cleanPhone = phone.replace(/[\s\-\(\)]/g, "");
-            if (!/^(?:\+94|0)?7[0-9]{8}$/.test(cleanPhone)) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Please provide a valid Sri Lankan mobile number."
-                });
-            }
+        if (email !== undefined) user.email = email.trim().toLowerCase();
+        if (phone !== undefined) user.phone = phone;
+        if (role !== undefined) user.role = role;
+        if (branch !== undefined) user.branch = validBranch;
+        if (salary !== undefined) user.salary = Number(salary);
+        if (status !== undefined) user.isActive = (status === "Active");
+        if (workingStatus !== undefined) user.workingStatus = workingStatus;
+        
+        const finalDate = joiningDate !== undefined ? joiningDate : hireDate;
+        if (finalDate !== undefined) {
+            user.joiningDate = finalDate ? new Date(finalDate) : null;
         }
 
-        if (branch !== undefined) {
-            employee.branch = validBranch;
-            if (validBranch) {
-                const branchDoc = await Branch.findById(validBranch);
-                employee.branchName = branchDoc ? branchDoc.name : "";
-            }
-        }
-        if (salary !== undefined && Number(salary) <= 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Salary must be a positive number above 0."
-            });
-        }
-        if (hireDate !== undefined) {
-            const inputDate = new Date(hireDate);
-            if (isNaN(inputDate.getTime())) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Hire date must be a valid date."
-                });
-            }
-        }
+        await user.save();
 
-        // Validate photo URL (only if no file was uploaded)
-        if (!req.file && photo !== undefined && photo.trim()) {
-            const isDataUri = photo.trim().startsWith('data:image/');
-            const urlRegex = /^(https?:\/\/|\/?uploads\/).*\.(?:png|jpg|jpeg|gif|webp)/i;
-            if (!isDataUri && !urlRegex.test(photo.trim())) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Photo must be a valid image URL (ending in .png, .jpg, .jpeg, or .webp) or relative path."
-                });
-            }
-        }
-
-        let imageUrl = employee.photo;
-
-        if (req.file) {
-            const base64Image = req.file.buffer.toString("base64");
-            const dataURI = `data:${req.file.mimetype};base64,${base64Image}`;
-
-            if (process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_CLOUD_NAME) {
-                try {
-                    const uploadedImage = await cloudinary.uploader.upload(dataURI, {
-                        folder: "retail_pos_employees"
-                    });
-                    imageUrl = uploadedImage.secure_url;
-                } catch (uploadErr) {
-                    console.error("Cloudinary upload failed, falling back to local file storage:", uploadErr.message);
-                    imageUrl = saveLocalFile(req);
-                }
-            } else {
-                console.log("Cloudinary credentials not configured. Saving to local file storage fallback.");
-                imageUrl = saveLocalFile(req);
-            }
-        } else if (photo !== undefined) {
-            imageUrl = photo;
-        }
-
-        // Step 1: Update corresponding User login credentials
-        if (employee.user) {
-            const authUser = await User.findById(employee.user);
-            if (authUser) {
-                if (firstName !== undefined) authUser.firstName = firstName;
-                if (lastName !== undefined) authUser.lastName = lastName;
-                if (firstName !== undefined || lastName !== undefined) {
-                    authUser.name = `${firstName || authUser.firstName} ${lastName || authUser.lastName}`.trim();
-                }
-                if (email !== undefined) authUser.email = email.trim().toLowerCase();
-                if (phone !== undefined) authUser.phone = phone;
-                if (role !== undefined) authUser.role = role.toUpperCase();
-                if (branch !== undefined) authUser.branch = validBranch;
-                if (status !== undefined) authUser.isActive = (status === "Active");
-                await authUser.save();
-            }
-        }
-
-        // Step 2: Update Employee profile details
-        if (firstName !== undefined) employee.firstName = firstName;
-        if (lastName !== undefined) employee.lastName = lastName;
-        if (email !== undefined) employee.email = email.trim().toLowerCase();
-        if (phone !== undefined) employee.phone = phone;
-        if (role !== undefined) employee.role = role.toUpperCase();
-        if (branch !== undefined) employee.branch = validBranch;
-        if (salary !== undefined) employee.salary = salary;
-        if (hireDate !== undefined) employee.joiningDate = hireDate;
-        employee.photo = imageUrl;
-
-        if (status !== undefined) employee.status = status;
-        if (workingStatus !== undefined) employee.workingStatus = workingStatus;
-
-        const updatedEmployee = await employee.save();
+        const mappedEmployee = {
+            _id: user._id,
+            employeeId: user._id.toString(),
+            firstName: user.firstName || user.name || "Unnamed",
+            lastName: user.lastName || "",
+            name: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+            email: user.email,
+            phone: user.phone || "No Phone",
+            role: user.role || "user",
+            branch: user.branch,
+            status: user.isActive ? "Active" : "Inactive",
+            salary: user.salary || 0,
+            joiningDate: user.joiningDate || null,
+            createdAt: user.createdAt,
+            workingStatus: user.workingStatus || "Off Duty",
+            performanceScore: user.performanceScore || 0.0
+        };
 
         // ✅ Add Audit Log
         await AuditService.log({
@@ -518,30 +230,28 @@ const updateEmployee = async (req, res) => {
             req,
             status: "SUCCESS",
             resourceType: "Employee",
-            resourceId: updatedEmployee._id,
-            resourceName: `${updatedEmployee.firstName} ${updatedEmployee.lastName}`,
+            resourceId: user._id,
+            resourceName: mappedEmployee.name,
             previousValues: oldValues,
             newValues: {
-                firstName: updatedEmployee.firstName,
-                lastName: updatedEmployee.lastName,
-                email: updatedEmployee.email,
-                phone: updatedEmployee.phone,
-                role: updatedEmployee.role,
-                branch: updatedEmployee.branch,
-                salary: updatedEmployee.salary,
-                status: updatedEmployee.status
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                branch: user.branch,
+                salary: user.salary,
+                status: mappedEmployee.status
             },
             metadata: {
-                employeeId: updatedEmployee.employeeId,
+                employeeId: mappedEmployee.employeeId,
                 updatedFields: Object.keys(req.body).filter(k => k !== 'photo')
-            },
-            branch: updatedEmployee.branch,
-            branchName: updatedEmployee.branchName,
+            }
         });
 
         return res.status(200).json({
             success: true,
-            employee: updatedEmployee,
+            employee: mappedEmployee,
             message: "Employee updated successfully"
         });
     } catch (error) {
@@ -559,35 +269,24 @@ const updateEmployee = async (req, res) => {
 // @access  Public
 const deleteEmployee = async (req, res) => {
     try {
-        let employee = await Employee.findById(req.params.id);
-
-        if (!employee) {
-            employee = await Employee.findOne({ employeeId: req.params.id });
-        }
-
-        if (!employee) {
+        const user = await Employee.findById(req.params.id);
+        if (!user) {
             return res.status(404).json({
                 success: false,
                 message: "Employee not found."
             });
         }
 
-        const employeeName = `${employee.firstName} ${employee.lastName}`;
-        const employeeId = employee.employeeId;
+        const employeeName = user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim();
+        const empIdStr = user._id.toString();
 
-        // Step 1: Delete corresponding User login record
-        if (employee.user) {
-            await User.findByIdAndDelete(employee.user);
-        }
+        // Delete user
+        await user.deleteOne();
 
-        // Step 2: Cascade delete all associated logs (schedules, attendance, performance)
-        const empIdStr = employee._id.toString();
+        // Cascade delete all associated logs (schedules, attendance, performance)
         await EmployeeSchedule.deleteMany({ employeeId: empIdStr });
         await EmployeeAttendance.deleteMany({ employeeId: empIdStr });
         await EmployeePerformance.deleteMany({ employeeId: empIdStr });
-
-        // Step 3: Delete Employee record
-        await employee.deleteOne();
 
         // ✅ Add Audit Log
         await AuditService.log({
@@ -597,25 +296,12 @@ const deleteEmployee = async (req, res) => {
             req,
             status: "SUCCESS",
             resourceType: "Employee",
-            resourceId: employee._id,
+            resourceId: user._id,
             resourceName: employeeName,
             metadata: {
-                employeeId: employeeId,
-                role: employee.role,
-                branch: employee.branchName
-            },
-            branch: employee.branch,
-            branchName: employee.branchName,
-        });
-
-        // Trigger a notification
-        systemEvents.emit('SEND_ALERT', {
-            target: { role: 'Admin' },
-            category: 'SECURITY',
-            type: 'WARNING',
-            title: 'Employee Terminated',
-            message: `Employee ${employeeName} (${employeeId}) has been removed from the system.`,
-            channels: ['in-app', 'email']
+                employeeId: empIdStr,
+                role: user.role
+            }
         });
 
         return res.status(200).json({
@@ -961,19 +647,11 @@ const logPerformanceMetric = async (req, res) => {
 // @access  Private
 const autoClockIn = async (req, res) => {
     try {
-        let employee = await Employee.findOne({ user: req.user._id });
-        if (!employee && req.user.email) {
-            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
-            if (employee) {
-                employee.user = req.user._id;
-                await employee.save();
-                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
-            }
-        }
+        let employee = await Employee.findById(req.user._id);
         if (!employee) {
             return res.status(200).json({
                 success: true,
-                message: "User is not registered in the employee directory. Auto clock-in skipped."
+                message: "User not found. Auto clock-in skipped."
             });
         }
         
@@ -1012,24 +690,6 @@ const autoClockIn = async (req, res) => {
 
         // Update employee working status
         employee.workingStatus = "Clocked In";
-        
-        // Add to attendance array if not exists
-        const dateObj = new Date(localDateStr);
-        const attendanceExistsInEmployee = employee.attendance.some(a => {
-            if (!a.date) return false;
-            try {
-                const d = a.date instanceof Date ? a.date : new Date(a.date);
-                return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === localDateStr;
-            } catch (e) {
-                return false;
-            }
-        });
-        if (!attendanceExistsInEmployee) {
-            employee.attendance.push({
-                date: dateObj,
-                status: "Present"
-            });
-        }
         await employee.save();
 
         // ✅ Add Audit Log
@@ -1046,8 +706,7 @@ const autoClockIn = async (req, res) => {
                 clockIn: clockInTimeStr,
                 status: "Present"
             },
-            branch: employee.branch,
-            branchName: employee.branchName,
+            branch: employee.branch
         });
 
         return res.status(200).json({
@@ -1056,32 +715,6 @@ const autoClockIn = async (req, res) => {
             attendance: attendanceRecord
         });
     } catch (error) {
-        // Handle duplicate key error gracefully
-        if (error.code === 11000) {
-            try {
-                const employee = await Employee.findOne({ user: req.user._id });
-                if (employee) {
-                    const now = new Date();
-                    const year = now.getFullYear();
-                    const month = String(now.getMonth() + 1).padStart(2, '0');
-                    const day = String(now.getDate()).padStart(2, '0');
-                    const localDateStr = `${year}-${month}-${day}`;
-                    const existingRecord = await EmployeeAttendance.findOne({
-                        employeeId: employee._id.toString(),
-                        date: localDateStr
-                    });
-                    if (existingRecord) {
-                        return res.status(200).json({
-                            success: true,
-                            message: "Auto clock-in successful (resolved parallel request)",
-                            attendance: existingRecord
-                        });
-                    }
-                }
-            } catch (findErr) {
-                console.error("Error retrieving existing record on duplicate key:", findErr.message);
-            }
-        }
         console.error("Auto clock-in error:", error);
         return res.status(500).json({
             success: false,
@@ -1096,19 +729,11 @@ const autoClockIn = async (req, res) => {
 // @access  Private
 const autoClockOut = async (req, res) => {
     try {
-        let employee = await Employee.findOne({ user: req.user._id });
-        if (!employee && req.user.email) {
-            employee = await Employee.findOne({ email: req.user.email.trim().toLowerCase() });
-            if (employee) {
-                employee.user = req.user._id;
-                await employee.save();
-                console.log(`🔧 Self-healed User-Employee relationship for ${employee.email}`);
-            }
-        }
+        let employee = await Employee.findById(req.user._id);
         if (!employee) {
             return res.status(200).json({
                 success: true,
-                message: "User is not registered in the employee directory. Auto clock-out skipped."
+                message: "User not found. Auto clock-out skipped."
             });
         }
         
@@ -1192,8 +817,7 @@ const autoClockOut = async (req, res) => {
                 date: localDateStr,
                 clockOut: clockOutTimeStr
             },
-            branch: employee.branch,
-            branchName: employee.branchName,
+            branch: employee.branch
         });
 
         return res.status(200).json({

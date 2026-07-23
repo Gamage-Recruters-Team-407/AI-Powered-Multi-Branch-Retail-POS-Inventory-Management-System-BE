@@ -3,10 +3,10 @@ const Warehouse = require("../models/Warehouse");
 const WarehouseZone = require("../models/WarehouseZone");
 const WarehouseStock = require("../models/WarehouseStock");
 const WarehouseTransaction = require("../models/WarehouseTransaction");
-const systemEvents = require("../events/eventBus");
-const StockMovement = require("../models/StockMovement");
 const Inventory = require("../models/Inventory");
 const Product = require("../models/Product");
+const systemEvents = require("../events/eventBus");
+const StockMovement = require("../models/StockMovement");
 
 // ─────────────────────────────────────────────
 // WAREHOUSE CRUD
@@ -122,7 +122,6 @@ const deleteZone = async (req, res) => {
 const getWarehouseStock = async (req, res) => {
   try {
     const warehouseId = req.params.id;
-    const mongoose = require("mongoose");
 
     const warehouseStockTotals = await WarehouseStock.aggregate([
       { $match: { warehouse: new mongoose.Types.ObjectId(warehouseId) } },
@@ -165,17 +164,12 @@ const getWarehouseStock = async (req, res) => {
       .populate("category", "name")
       .lean();
 
-    // 4) Merge Data
     const result = allProducts.map((p) => {
       const ws  = wsMap.get(String(p._id));
       const inv = invMap.get(String(p._id));
 
-      // 🔴 FIX: ඔයාගේ Frontend එකෙන් නියම Stock ගාණ Save වෙලා තියෙන්නේ `reorderLevel` එකේ නිසා, 
-      // ඒක අපි කෙලින්ම Total Quantity එකට ගන්නවා.
       const totalQty  = p.reorderLevel ?? 0;
       const reserved  = inv?.reserved ?? 0;
-      
-      // 🔴 FIX: Min Stock එකට සාමාන්‍යයෙන් 10ක් දානවා (එතකොට 10ට අඩු උනාම Low Stock කියලා පෙන්නයි)
       const minStock  = ws?.minStock ?? 10;
       
       const isLowStock   = totalQty > 0 && totalQty <= minStock;
@@ -210,7 +204,7 @@ const getWarehouseStock = async (req, res) => {
 const addStock = async (req, res) => {
   return res.status(403).json({
     success: false,
-    message: "Warehouse eken directly stock update karanna bari. Product Management → Edit Product → Stock tab ekata yanna.",
+    message: "Warehouse stock update directly disabled. Go to Product Management → Edit Product → Stock tab.",
     info: "Warehouse stock view is read-only. Use Product Management to update inventory."
   });
 };
@@ -219,7 +213,7 @@ const addStock = async (req, res) => {
 const removeStock = async (req, res) => {
   return res.status(403).json({
     success: false,
-    message: "Warehouse eken directly stock remove karanna bari. Product Management → Edit Product → Stock tab ekata yanna.",
+    message: "Warehouse stock removal directly disabled. Go to Product Management → Edit Product → Stock tab.",
     info: "Warehouse stock view is read-only. Use Product Management to update inventory."
   });
 };
@@ -229,14 +223,24 @@ const transferStock = async (req, res) => {
   try {
     const { fromWarehouse, fromZone, toWarehouse, toZone, product, quantity, toBranch, note } = req.body;
 
-    const sourceStock = await WarehouseStock.findOne({ warehouse: fromWarehouse, zone: fromZone, product });
-    if (!sourceStock || sourceStock.quantity < quantity) {
-      return res.status(400).json({ message: "Insufficient stock in source warehouse" });
+    const qty = Number(quantity);
+    let totalDeduction = qty;
+    let branchesToDistribute = [];
+
+    if (toBranch === "all") {
+      const Branch = require("../models/Branch");
+      branchesToDistribute = await Branch.find({});
+      totalDeduction = qty * branchesToDistribute.length;
     }
 
-    sourceStock.quantity -= Number(quantity);
+    const sourceStock = await WarehouseStock.findOne({ warehouse: fromWarehouse, zone: fromZone, product });
+    if (!sourceStock || sourceStock.quantity < totalDeduction) {
+      return res.status(400).json({ message: `Insufficient stock in source warehouse. Requires ${totalDeduction} units total.` });
+    }
+
+    sourceStock.quantity -= Number(totalDeduction);
     await sourceStock.save();
-    await WarehouseZone.findByIdAndUpdate(fromZone, { $inc: { currentStock: -Number(quantity) } });
+    await WarehouseZone.findByIdAndUpdate(fromZone, { $inc: { currentStock: -Number(totalDeduction) } });
 
     if (toWarehouse && toZone) {
       let destStock = await WarehouseStock.findOne({ warehouse: toWarehouse, zone: toZone, product });
@@ -250,12 +254,79 @@ const transferStock = async (req, res) => {
       await WarehouseTransaction.create({ warehouse: toWarehouse, zone: toZone, product, type: "TRANSFER_IN", quantity, fromBranch: fromWarehouse, performedBy: req.user?.id, note });
     }
 
+    if (toBranch) {
+      const io = req.app.get("io");
+      const productObjectId = new mongoose.Types.ObjectId(product);
+
+      if (toBranch === "all") {
+        for (const branch of branchesToDistribute) {
+          const branchId = branch._id;
+          let branchInventory = await Inventory.findOne({ branch: branchId, product: productObjectId });
+          if (!branchInventory) {
+            branchInventory = new Inventory({
+              branch: branchId,
+              product: productObjectId,
+              quantity: 0,
+              reservedStock: 0,
+              lowStockAlert: false
+            });
+          }
+
+          const oldQuantity = branchInventory.quantity;
+          branchInventory.quantity += Number(qty);
+          branchInventory.lowStockAlert = branchInventory.quantity < 50;
+          await branchInventory.save();
+
+          if (io) {
+            const socketRoom = `branch_${branchId.toString()}`;
+            io.to(socketRoom).emit("stockUpdated", {
+              inventoryId: branchInventory._id,
+              productId: productObjectId,
+              branchId,
+              newQuantity: branchInventory.quantity,
+              oldQuantity: oldQuantity,
+              movementType: "transfer_in"
+            });
+          }
+        }
+      } else {
+        const branchId = new mongoose.Types.ObjectId(toBranch);
+        let branchInventory = await Inventory.findOne({ branch: branchId, product: productObjectId });
+        if (!branchInventory) {
+          branchInventory = new Inventory({
+            branch: branchId,
+            product: productObjectId,
+            quantity: 0,
+            reservedStock: 0,
+            lowStockAlert: false
+          });
+        }
+
+        const oldQuantity = branchInventory.quantity;
+        branchInventory.quantity += Number(qty);
+        branchInventory.lowStockAlert = branchInventory.quantity < 50;
+        await branchInventory.save();
+
+        if (io) {
+          const socketRoom = `branch_${toBranch}`;
+          io.to(socketRoom).emit("stockUpdated", {
+            inventoryId: branchInventory._id,
+            productId: productObjectId,
+            branchId,
+            newQuantity: branchInventory.quantity,
+            oldQuantity: oldQuantity,
+            movementType: "transfer_in"
+          });
+        }
+      }
+    }
+
     await WarehouseTransaction.create({
       warehouse: fromWarehouse, zone: fromZone, product,
-      type: "TRANSFER_OUT", quantity,
-      toBranch: toBranch || toWarehouse,
+      type: "TRANSFER_OUT", quantity: totalDeduction,
+      toBranch: toBranch === "all" ? undefined : toBranch || undefined,
       performedBy: req.user?.id,
-      note,
+      note: toBranch === "all" ? `${note || ""} (Distributed to all branches)` : note,
     });
 
     systemEvents.emit('SEND_ALERT', {
@@ -503,7 +574,7 @@ const setMainWarehouse = async (req, res) => {
 
     res.json({
       success: true,
-      message: `"${warehouse.name}" main warehouse widihata set kala.`,
+      message: `"${warehouse.name}" main warehouse has been set successfully.`,
       data: warehouse,
     });
   } catch (err) {
@@ -589,7 +660,6 @@ const getMainWarehouseProducts = async (req, res) => {
           unit:          "$productInfo.unit",
           image:         "$productInfo.image",
           reorderLevel:  "$productInfo.reorderLevel",
-          // 🔴 FIX: මෙතනත් reorderLevel එකම Total Quantity එක විදිහට ගන්නවා
           totalQuantity: { $ifNull: ["$productInfo.reorderLevel", 0] }, 
           minStock:      { $literal: 10 },
           isLowStock:    { $lte: [{ $ifNull: ["$productInfo.reorderLevel", 0] }, 10] },

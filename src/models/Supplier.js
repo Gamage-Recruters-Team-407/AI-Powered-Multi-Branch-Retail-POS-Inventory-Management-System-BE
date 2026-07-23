@@ -24,6 +24,14 @@ const transactionSchema = new mongoose.Schema({
       message: '{VALUE} is not a valid transaction status'
     },
     required: [true, 'Transaction status is required']
+  },
+  productId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Product"
+  },
+  branchId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Branch"
   }
 }, { _id: false });
 

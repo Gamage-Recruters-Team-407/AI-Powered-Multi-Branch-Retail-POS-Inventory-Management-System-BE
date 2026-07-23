@@ -35,7 +35,8 @@ class DashboardService {
       };
 
       if (branchId) {
-        filterQuery.branchId = branchId;
+        const mongoose = require('mongoose');
+        filterQuery.branch = new mongoose.Types.ObjectId(branchId);
       }
 
       // Parallel execution for better performance
@@ -161,37 +162,25 @@ class DashboardService {
    */
   async calculateInventoryMetrics(filterQuery) {
     try {
-      // const inventoryData = await Inventory.aggregate([
-      //   {
-      //     $lookup: {
-      //       from: 'products',
-      //       localField: 'productId',
-      //       foreignField: '_id',
-      //       as: 'product',
-      //     },
-      //   },
-      //   {
-      //     $group: {
-      //       _id: null,
-      //       totalItems: { $sum: '$quantity' },
-      //       totalValue: { $sum: { $multiply: ['$quantity', { $arrayElemAt: ['$product.price', 0] }] } },
-      //       averagePrice: { $avg: { $arrayElemAt: ['$product.price', 0] } },
-      //     },
-      //   },
-      // ]);
+      const mongoose = require('mongoose');
+      const inventoryMatch = {};
+      if (filterQuery.branch) {
+        inventoryMatch.branch = filterQuery.branch;
+      }
 
       const inventoryData = await Inventory.aggregate([
+        { $match: inventoryMatch },
         {
           $lookup: {
             from: 'products',
-            localField: 'productId',
+            localField: 'product',
             foreignField: '_id',
-            as: 'product',
+            as: 'productDetail',
           },
         },
         {
           $addFields: {
-            productPrice: { $arrayElemAt: ['$product.price', 0] }
+            productCost: { $arrayElemAt: ['$productDetail.costPrice', 0] }
           }
         },
         {
@@ -202,21 +191,32 @@ class DashboardService {
               $sum: { 
                 $multiply: [
                   '$quantity', 
-                  { $ifNull: ['$productPrice', 0] }  // null safe
+                  { $ifNull: ['$productCost', 0] }  // null safe
                 ] 
               } 
             },
-            averagePrice: { $avg: '$productPrice' },
+            averagePrice: { $avg: '$productCost' },
           },
         },
       ]);
 
-      const lowStockItems = await Inventory.find(
-        { quantity: { $lt: 20 } },
-        { productId: 1, quantity: 1, reorderLevel: 1 }
-      )
+      const lowStockItemsRaw = await Inventory.find({
+        lowStockAlert: true,
+        ...(filterQuery.branch ? { branch: filterQuery.branch } : {})
+      })
         .limit(15)
-        .sort({ quantity: 1 });
+        .populate('product')
+        .populate('branch');
+
+      const lowStockItems = lowStockItemsRaw.map(item => ({
+        id: item._id,
+        name: item.product?.name || 'N/A',
+        sku: item.product?.sku || 'N/A',
+        stock: item.quantity,
+        threshold: item.product?.reorderLevel || 0,
+        branch: item.branch?.name || 'N/A',
+        category: item.product?.category || 'N/A'
+      }));
 
       const stockMovementData = await StockMovement.aggregate([
         { $match: filterQuery },
@@ -234,7 +234,7 @@ class DashboardService {
       const branchStockStatus = await Inventory.aggregate([
         {
           $group: {
-            _id: '$branchId',
+            _id: '$branch',
             totalItems: { $sum: '$quantity' },
             productCount: { $sum: 1 },
             avgStockLevel: { $avg: '$quantity' },

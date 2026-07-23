@@ -151,7 +151,7 @@ const addProduct = async (req, res) => {
             isActive
         });
 
-        // Automatically create inventory records for branches using the initial quantity
+    
         try {
             const branches = await Branch.find({});
             if (branches && branches.length > 0) {
@@ -166,13 +166,66 @@ const addProduct = async (req, res) => {
                         branch: b._id,
                         quantity: qtyForThisBranch,
                         reservedStock: 0,
-                        lowStockAlert: qtyForThisBranch <= (Number(reorderLevel) || 0)
+                        lowStockAlert: qtyForThisBranch < 50
                     };
                 });
                 await Inventory.insertMany(inventoryEntries);
             }
         } catch (invErr) {
             console.error("Error creating initial inventory records for branches:", invErr.message);
+        }
+
+
+        try {
+            const Warehouse = require("../models/Warehouse");
+            const WarehouseZone = require("../models/WarehouseZone");
+            const WarehouseStock = require("../models/WarehouseStock");
+            const WarehouseTransaction = require("../models/WarehouseTransaction");
+
+            let warehouse = await Warehouse.findOne({ isMain: true, isActive: true });
+            if (!warehouse) {
+                warehouse = await Warehouse.findOne({ isActive: true });
+            }
+            if (warehouse) {
+                let zone = await WarehouseZone.findOne({ warehouse: warehouse._id, isActive: true });
+                if (!zone) {
+                    zone = await WarehouseZone.create({
+                        warehouse: warehouse._id,
+                        zoneName: "Default Zone",
+                        zoneCode: "DEFAULT",
+                        capacity: 10000,
+                        currentStock: 0,
+                        isActive: true
+                    });
+                }
+
+                const initQty = Number(quantity) || 0;
+
+                await WarehouseStock.create({
+                    warehouse: warehouse._id,
+                    zone: zone._id,
+                    product: product._id,
+                    quantity: initQty
+                });
+
+                if (initQty > 0) {
+                    zone.currentStock = Math.max(0, zone.currentStock + initQty);
+                    await zone.save();
+
+                    await WarehouseTransaction.create({
+                        warehouse: warehouse._id,
+                        zone: zone._id,
+                        product: product._id,
+                        type: "IN",
+                        quantity: initQty,
+                        reference: "PRODUCT_CREATION",
+                        note: `Initial stock from product registration: ${name}`
+                    });
+                }
+                console.log(`Warehouse stock initialized for product ${product._id}: ${initQty} units in zone ${zone.zoneName}`);
+            }
+        } catch (whErr) {
+            console.error("Error creating initial warehouse stock record:", whErr.message);
         }
 
         systemEvents.emit("SEND_ALERT", {

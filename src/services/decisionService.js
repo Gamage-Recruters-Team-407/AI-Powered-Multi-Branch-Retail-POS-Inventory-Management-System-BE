@@ -32,7 +32,7 @@ const getPendingSuggestions = async () => {
         { $unwind: '$productDetails' },
         {
           $match: {
-            $expr: { $lte: ['$quantity', '$productDetails.reorderLevel'] },
+            $expr: { $lt: ['$quantity', 50] },
             'productDetails.isActive': { $ne: false }
           }
         },
@@ -50,7 +50,7 @@ const getPendingSuggestions = async () => {
       ]);
 
       for (const item of lowStockItems) {
-        const reorderLvl = item.reorderLevel || 10;
+        const reorderLvl = 50;
         const suggestedQty = Math.max(reorderLvl * 2 - item.currentStock, 10);
         const urgency = item.currentStock === 0 ? 'critical' : (item.currentStock <= Math.floor(reorderLvl / 2) ? 'critical' : 'warning');
 

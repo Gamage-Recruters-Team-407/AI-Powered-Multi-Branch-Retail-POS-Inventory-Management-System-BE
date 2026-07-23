@@ -1,4 +1,4 @@
-const AuditLog = require("../models/AuditLog");
+const AuditLog = require("../models/Auditlog");
 const SecurityPolicy = require("../models/SecurityPolicy");
 const LoginAttempt = require("../models/LoginAttempt");
 const SecurityEvent = require("../models/SecurityEvent");
