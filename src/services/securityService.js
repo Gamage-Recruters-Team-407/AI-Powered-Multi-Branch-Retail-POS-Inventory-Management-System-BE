@@ -1,3 +1,4 @@
+// services/securityService.js
 const SecurityPolicy = require("../models/SecurityPolicy");
 const LoginAttempt = require("../models/LoginAttempt");
 const AuditLog = require("../models/Auditlog");
@@ -50,7 +51,7 @@ const SecurityService = {
       },
       lockoutPolicy: {
         enabled: true,
-        maxAttempts: 20, // ✅ 20 failed attempts  block 
+        maxAttempts: 20, // ✅ 20 failed attempts වලින් පස්සේ block වෙයි
         lockoutDurationMinutes: 30,
         resetAfterMinutes: 15,
       },
@@ -86,7 +87,7 @@ const SecurityService = {
     return attempt;
   },
 
-  // ✅ 20 failed attempts check  function 
+  // ✅ 20 failed attempts check කරන function එක
   async checkBruteForce(email, ipAddress) {
     const policy = await SecurityService.getActivePolicy();
     const lp = policy.lockoutPolicy;
@@ -100,9 +101,8 @@ const SecurityService = {
       createdAt: { $gte: window },
     });
 
-    // ✅ 20 failed attempts block 
+    // ✅ 20 failed attempts වලින් පස්සේ block වෙයි
     if (emailAttempts >= lp.maxAttempts) {
-<<<<<<< HEAD
       const oldest = await LoginAttempt.findOne({ 
         email: email.toLowerCase(), 
         success: false, 
@@ -110,10 +110,6 @@ const SecurityService = {
       }).sort({ createdAt: 1 });
       
       const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 1000);
-=======
-      const oldest = await LoginAttempt.findOne({ email: email.toLowerCase(), success: false, createdAt: { $gte: window } }).sort({ createdAt: 1 });
-      const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 10);
->>>>>>> b081c4c672072306ccd7fc3e8241b33c8fcedd9e
       const remainingMs = lockUntil - Date.now();
       
       if (remainingMs > 0) {
@@ -133,7 +129,6 @@ const SecurityService = {
       createdAt: { $gte: window },
     });
 
-<<<<<<< HEAD
     if (ipAttempts >= lp.maxAttempts * 2) {
       return { 
         blocked: true, 
@@ -142,11 +137,6 @@ const SecurityService = {
         failedAttempts: ipAttempts
       };
     }
-=======
-    // if (ipAttempts >= lp.maxAttempts * 2) {
-    //   return { blocked: true, reason: "IP address temporarily blocked due to suspicious activity.", remainingMinutes: lp.lockoutDurationMinutes };
-    // }
->>>>>>> b081c4c672072306ccd7fc3e8241b33c8fcedd9e
 
     return { 
       blocked: false,
@@ -155,7 +145,7 @@ const SecurityService = {
     };
   },
 
-  // ✅ IP Blacklist check - 403 error 
+  // ✅ IP Blacklist check - 403 error එක එන්නේ මෙතනින්
   async isIPAllowed(ipAddress) {
     const policy = await SecurityService.getActivePolicy();
     const { ipPolicy } = policy;
@@ -170,7 +160,7 @@ const SecurityService = {
     return { allowed: true };
   },
 
-  // ✅ Blacklist  IP  add function - 403 
+  // ✅ Blacklist එකට IP එක add කරන function - 403 එන්නේ මෙතනින්
   async addToBlacklist(ipAddress, updatedBy) {
     const policy = await SecurityPolicy.findOne({ isActive: true });
     if (!policy.ipPolicy.blacklist.includes(ipAddress)) {
