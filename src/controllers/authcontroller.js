@@ -15,11 +15,21 @@ const generateToken = (userId, sessionId) => {
 };
 
 // ── 2. EMAIL TRANSPORTER ────────────────────────────────────────────────────
+// const transporter = nodemailer.createTransport({
+//   service: "gmail",
+//   auth: {
+//     user: process.env.EMAIL,
+//     pass: process.env.EMAIL_PASS,
+//   },
+// });
+
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === "true", // false for port 587 (STARTTLS)
   auth: {
-    user: process.env.EMAIL,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
@@ -102,6 +112,7 @@ const register = async (req, res) => {
 // ── 4. LOGIN USER FUNCTION ──────────────────────────────────────────────────
 const loginUser = async (req, res) => {
   try {
+    
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -114,6 +125,9 @@ const loginUser = async (req, res) => {
     const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.ip || "unknown").split(",")[0].trim();
 
     const bruteCheck = await SecurityService.checkBruteForce(email, ip);
+
+    console.log("Brute Check:", bruteCheck);
+    
     if (bruteCheck.blocked) {
       await SecurityService.recordLoginAttempt({
         email, 
@@ -143,7 +157,8 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    const normalizedEmail = (email || "").toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
     if (!user) {
       await SecurityService.recordLoginAttempt({ 

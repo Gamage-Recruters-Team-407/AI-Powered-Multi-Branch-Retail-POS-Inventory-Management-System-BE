@@ -102,6 +102,7 @@ const SecurityService = {
 
     // ✅ 20 failed attempts block 
     if (emailAttempts >= lp.maxAttempts) {
+<<<<<<< HEAD
       const oldest = await LoginAttempt.findOne({ 
         email: email.toLowerCase(), 
         success: false, 
@@ -109,6 +110,10 @@ const SecurityService = {
       }).sort({ createdAt: 1 });
       
       const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 1000);
+=======
+      const oldest = await LoginAttempt.findOne({ email: email.toLowerCase(), success: false, createdAt: { $gte: window } }).sort({ createdAt: 1 });
+      const lockUntil = new Date(oldest.createdAt.getTime() + lp.lockoutDurationMinutes * 60 * 10);
+>>>>>>> b081c4c672072306ccd7fc3e8241b33c8fcedd9e
       const remainingMs = lockUntil - Date.now();
       
       if (remainingMs > 0) {
@@ -128,6 +133,7 @@ const SecurityService = {
       createdAt: { $gte: window },
     });
 
+<<<<<<< HEAD
     if (ipAttempts >= lp.maxAttempts * 2) {
       return { 
         blocked: true, 
@@ -136,6 +142,11 @@ const SecurityService = {
         failedAttempts: ipAttempts
       };
     }
+=======
+    // if (ipAttempts >= lp.maxAttempts * 2) {
+    //   return { blocked: true, reason: "IP address temporarily blocked due to suspicious activity.", remainingMinutes: lp.lockoutDurationMinutes };
+    // }
+>>>>>>> b081c4c672072306ccd7fc3e8241b33c8fcedd9e
 
     return { 
       blocked: false,

@@ -38,8 +38,8 @@ exports.sendOffer = async (req, res) => {
 exports.reorder = async (req, res) => {
   try {
     const { productId, branchId, quantity } = req.body;
-    if (!productId || !branchId || !quantity) {
-      return res.status(400).json({ success: false, message: 'productId, branchId, and quantity are required' });
+    if (!productId || !branchId || quantity === undefined || quantity === null || Number(quantity) <= 0) {
+      return res.status(400).json({ success: false, message: 'productId, branchId, and a positive quantity are required' });
     }
     const result = await decisionService.triggerReorder(productId, branchId, quantity);
     res.json(result);

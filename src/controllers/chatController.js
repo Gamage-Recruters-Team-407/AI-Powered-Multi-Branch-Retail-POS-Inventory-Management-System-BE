@@ -40,12 +40,13 @@ exports.clearHistory = async (req, res) => {
 exports.deleteMessage = async (req, res) => {
   try {
     const { id } = req.params;
-    const success = await aiChatService.deleteMessage(id);
-    if (!success) {
-      return res.status(404).json({ success: false, message: 'Message not found' });
-    }
-    res.json({ success: true, message: 'Message deleted' });
+    await aiChatService.deleteMessage(id);
+    res.status(200).json({ success: true, message: 'Message deleted' });
   } catch (error) {
+    if (error.name === 'CastError') {
+      // Treat invalid ObjectId as if the message is already deleted (idempotent)
+      return res.status(200).json({ success: true, message: 'Message deleted' });
+    }
     res.status(500).json({ success: false, error: error.message });
   }
 };
