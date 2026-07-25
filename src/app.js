@@ -84,7 +84,7 @@ app.use(async (req, res, next) => {
 
 // ── 1. Global IP Guard ────────────────────────────────────────────────────
 // Blacklist කරපු IP ලිස්ට් එකෙන් එන හොර Requests රූට්ස් වලට යන්න කලින්ම බ්ලොක් කරයි
-// app.use(ipGuardMiddleware);
+app.use(ipGuardMiddleware);
 
 // Static uploads ෆෝල්ඩරය පද්ධතියට සම්බන්ධ කිරීම (ඡායාරූප/ෆයිල්ස් සඳහා)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
