@@ -35,9 +35,54 @@ const ROUTE_MAP = [
   { pattern: /^\/api\/returns/, method: "POST", action: "REFUND_PROCESSED", module: "RETURN" },
 
   // Stock transfers
-  { pattern: /^\/api\/stock-transfers$/, method: "POST", action: "STOCK_TRANSFER_INITIATED", module: "STOCK_TRANSFER" },
-  { pattern: /^\/api\/stock-transfers\/[^/]+\/approve/, method: "POST", action: "STOCK_TRANSFER_APPROVED", module: "STOCK_TRANSFER" },
-  { pattern: /^\/api\/stock-transfers\/[^/]+\/reject/, method: "POST", action: "STOCK_TRANSFER_REJECTED", module: "STOCK_TRANSFER" },
+  {
+    pattern: /^\/api\/stock-transfers$/,
+    method: "POST",
+    action: "STOCK_TRANSFER_INITIATED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+$/,
+    method: "PUT",
+    action: "UPDATE",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+$/,
+    method: "DELETE",
+    action: "DELETE",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/approve$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_APPROVED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/reject$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_REJECTED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/dispatch$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_DISPATCHED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/complete$/,
+    method: "PATCH",
+    action: "STOCK_TRANSFER_COMPLETED",
+    module: "STOCK_TRANSFER"
+  },
+  {
+    pattern: /^\/api\/stock-transfers\/[^/]+\/cancel$/,
+    method: "PATCH",
+    action: "UPDATE",
+    module: "STOCK_TRANSFER"
+  },
 
   // Purchase Orders
   { pattern: /^\/api\/purchase-orders$/, method: "POST", action: "PURCHASE_ORDER_CREATED", module: "PURCHASE_ORDER" },
@@ -106,7 +151,7 @@ const auditMiddleware = (options = {}) => {
       setImmediate(async () => {
         try {
           const status = res.statusCode >= 400 ? "FAILURE" : "SUCCESS";
-          
+
           // ✅ Pass full user object including all details
           await AuditService.log({
             user: req.user || null,
