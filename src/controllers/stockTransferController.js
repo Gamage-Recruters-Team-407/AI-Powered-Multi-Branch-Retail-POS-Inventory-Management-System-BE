@@ -6,18 +6,18 @@ const Branch = require("../models/Branch");
 const Product = require("../models/Product");
 const AuditLog = require("../models/Auditlog");
 const {
-	isAdminRole,
-	isManagerRole,
-	getCreateTransferDenial,
-	getManagerPendingTransferDenial,
-	getDispatchTransferDenial,
-	getConfirmReceiptDenial,
-	getTransferActions,
-	getPermissionsForUser,
-	buildTransferScopeFilter,
-	buildMovementScopeFilter,
-	getTransferViewDenial,
-	getUserBranchIds,
+    isAdminRole,
+    isManagerRole,
+    getCreateTransferDenial,
+    getManagerPendingTransferDenial,
+    getDispatchTransferDenial,
+    getConfirmReceiptDenial,
+    getTransferActions,
+    getPermissionsForUser,
+    buildTransferScopeFilter,
+    buildMovementScopeFilter,
+    getTransferViewDenial,
+    getUserBranchIds,
 } = require("../utils/stockTransferPermissions");
 
 const parsePagination = (query) => {
@@ -301,8 +301,12 @@ const createTransfer = async (req, res) => {
         }
 
         const availability = await checkStockAvailability(fromBranch, items);
+
         if (!availability.available) {
-            return res.status(400).json({ success: false, message: availability.message });
+            return res.status(400).json({
+                success: false,
+                message: availability.message
+            });
         }
 
         const transfer = await StockTransfer.create({
@@ -320,14 +324,18 @@ const createTransfer = async (req, res) => {
             ]
         });
 
-        await createAuditLog(req, "CREATE_TRANSFER", {
-            transferId: transfer._id,
-            fromBranch,
-            toBranch,
-            itemCount: items.length
-        });
+        // Do not create the audit log manually here.
+        // auditMiddleware logs this action as STOCK_TRANSFER_INITIATED.
 
-        return res.status(201).json({ success: true, data: transfer });
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(201).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -385,12 +393,27 @@ const updateTransfer = async (req, res) => {
             transfer.notes = notes;
         }
 
-        pushActivityLog(transfer, "PENDING", "Transfer updated", req.user._id);
+        pushActivityLog(
+            transfer,
+            "PENDING",
+            "Transfer updated",
+            req.user._id
+        );
+
         await transfer.save();
 
-        await createAuditLog(req, "UPDATE_TRANSFER", { transferId: transfer._id });
+        // Manual audit removed.
+        // auditMiddleware will record this update.
 
-        return res.status(200).json({ success: true, data: transfer });
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -398,96 +421,208 @@ const updateTransfer = async (req, res) => {
 
 const deleteTransfer = async (req, res) => {
     try {
-        const transfer = await StockTransfer.findById(req.params.id);
+        // lean() returns a plain object, not a Mongoose document.
+        // Therefore, it cannot later run transfer.save().
+        const transfer = await StockTransfer.findById(req.params.id).lean();
 
         if (!transfer) {
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
         if (transfer.status !== "PENDING") {
-            return res.status(400).json({ success: false, message: "Only PENDING transfers can be deleted." });
+            return res.status(400).json({
+                success: false,
+                message: "Only PENDING transfers can be deleted."
+            });
         }
 
-        const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+        const managerAccessError = getManagerPendingTransferDenial(
+            req.user,
+            transfer
+        );
+
         if (managerAccessError) {
-            return res.status(403).json({ success: false, message: managerAccessError });
+            return res.status(403).json({
+                success: false,
+                message: managerAccessError
+            });
         }
 
-        await StockTransfer.deleteOne({ _id: transfer._id });
-        await createAuditLog(req, "DELETE_TRANSFER", { transferId: transfer._id });
+        // Delete only if the record is still PENDING and unchanged.
+        const deleteResult = await StockTransfer.deleteOne({
+            _id: transfer._id,
+            status: "PENDING",
+            __v: transfer.__v
+        });
 
-        return res.status(200).json({ success: true, message: "Transfer deleted successfully." });
+        if (deleteResult.deletedCount !== 1) {
+            return res.status(409).json({
+                success: false,
+                message:
+                    "Transfer was changed by another request. Refresh and try again."
+            });
+        }
+
+        // No manual createAuditLog() call here.
+        // auditMiddleware handles the DELETE audit asynchronously.
+
+        return res.status(200).json({
+            success: true,
+            message: "Transfer deleted successfully."
+        });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        console.error("Delete stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Failed to delete stock transfer."
+        });
     }
 };
 
 /** Legacy/manual dispatch for transfers stuck in APPROVED */
 const dispatchTransfer = async (req, res) => {
     const session = await mongoose.startSession();
-    session.startTransaction();
 
     try {
-        const transfer = await StockTransfer.findById(req.params.id).session(session);
+        session.startTransaction();
+
+        const transfer = await StockTransfer.findById(
+            req.params.id
+        ).session(session);
 
         if (!transfer) {
             await session.abortTransaction();
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
-        const dispatchDenial = getDispatchTransferDenial(req.user, transfer);
+        const dispatchDenial = getDispatchTransferDenial(
+            req.user,
+            transfer
+        );
+
         if (dispatchDenial) {
             await session.abortTransaction();
-            return res.status(403).json({ success: false, message: dispatchDenial });
+
+            return res.status(403).json({
+                success: false,
+                message: dispatchDenial
+            });
         }
 
-        const availability = await checkStockAvailability(transfer.fromBranch, transfer.items, session);
+        const availability = await checkStockAvailability(
+            transfer.fromBranch,
+            transfer.items,
+            session
+        );
+
         if (!availability.available) {
             await session.abortTransaction();
-            return res.status(400).json({ success: false, message: availability.message });
+
+            return res.status(400).json({
+                success: false,
+                message: availability.message
+            });
         }
 
-        await deductSourceBranchStock(transfer, req.user._id, session);
+        await deductSourceBranchStock(
+            transfer,
+            req.user._id,
+            session
+        );
 
         transfer.status = "IN_TRANSIT";
         transfer.dispatchedAt = new Date();
-        pushActivityLog(transfer, "IN_TRANSIT", "Transfer dispatched", req.user._id);
+
+        pushActivityLog(
+            transfer,
+            "IN_TRANSIT",
+            "Transfer dispatched",
+            req.user._id
+        );
 
         await transfer.save({ session });
+
+        // Read the final response data before committing.
+        const populated = await StockTransfer.findById(transfer._id)
+            .session(session)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
         await session.commitTransaction();
 
-        await createAuditLog(req, "DISPATCH_TRANSFER", { transferId: transfer._id });
+        // No manual createAuditLog call.
+        // auditMiddleware logs STOCK_TRANSFER_DISPATCHED.
 
-        return res.status(200).json({ success: true, data: transfer });
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
-        await session.abortTransaction();
-        return res.status(500).json({ success: false, message: error.message });
+        // Never abort an already committed transaction.
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+
+        console.error("Dispatch stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     } finally {
-        session.endSession();
+        await session.endSession();
     }
 };
 
 const completeTransfer = async (req, res) => {
     const session = await mongoose.startSession();
-    session.startTransaction();
 
     try {
-        const transfer = await StockTransfer.findById(req.params.id).session(session);
+        session.startTransaction();
+
+        const transfer = await StockTransfer.findById(
+            req.params.id
+        ).session(session);
 
         if (!transfer) {
             await session.abortTransaction();
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
         if (transfer.status !== "IN_TRANSIT") {
             await session.abortTransaction();
-            return res.status(400).json({ success: false, message: "Only IN_TRANSIT transfers can be completed." });
+
+            return res.status(400).json({
+                success: false,
+                message: "Only IN_TRANSIT transfers can be completed."
+            });
         }
 
-        const receiptAccessError = getConfirmReceiptDenial(req.user, transfer);
+        const receiptAccessError = getConfirmReceiptDenial(
+            req.user,
+            transfer
+        );
+
         if (receiptAccessError) {
             await session.abortTransaction();
-            return res.status(403).json({ success: false, message: receiptAccessError });
+
+            return res.status(403).json({
+                success: false,
+                message: receiptAccessError
+            });
         }
 
         for (const item of transfer.items) {
@@ -506,19 +641,44 @@ const completeTransfer = async (req, res) => {
 
         transfer.status = "COMPLETED";
         transfer.completedAt = new Date();
-        pushActivityLog(transfer, "COMPLETED", "Transfer completed", req.user._id);
+
+        pushActivityLog(
+            transfer,
+            "COMPLETED",
+            "Transfer completed",
+            req.user._id
+        );
 
         await transfer.save({ session });
+
+        const populated = await StockTransfer.findById(transfer._id)
+            .session(session)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
         await session.commitTransaction();
 
-        await createAuditLog(req, "COMPLETE_TRANSFER", { transferId: transfer._id });
+        // No manual createAuditLog call.
+        // auditMiddleware logs STOCK_TRANSFER_COMPLETED.
 
-        return res.status(200).json({ success: true, data: transfer });
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
-        await session.abortTransaction();
-        return res.status(500).json({ success: false, message: error.message });
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+
+        console.error("Complete stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     } finally {
-        session.endSession();
+        await session.endSession();
     }
 };
 
@@ -545,8 +705,10 @@ const approveTransfer = async (req, res) => {
         }
 
         const now = new Date();
+
         transfer.status = "APPROVED";
         transfer.approvedAt = now;
+
         pushActivityLog(
             transfer,
             "APPROVED",
@@ -556,78 +718,104 @@ const approveTransfer = async (req, res) => {
 
         await transfer.save();
 
-        await createAuditLog(req, "APPROVE_TRANSFER", { transferId: transfer._id });
+        // Manual audit logging removed.
+        // auditMiddleware handles this request asynchronously.
 
-        return res.status(200).json({ success: true, data: transfer });
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
 
 const cancelTransfer = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        const transfer = await StockTransfer.findById(req.params.id).session(session);
+        const transfer = await StockTransfer.findById(req.params.id);
         const { reason } = getRequestBody(req);
 
         if (!transfer) {
-            await session.abortTransaction();
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
-        if (["COMPLETED", "CANCELLED", "REJECTED"].includes(transfer.status)) {
-            await session.abortTransaction();
+        // Managers and admins may cancel only while the transfer is pending.
+        if (transfer.status !== "PENDING") {
             return res.status(400).json({
                 success: false,
-                message: `Transfer cannot be cancelled when status is ${transfer.status}.`
+                message: `Only PENDING transfers can be cancelled. Current status is ${transfer.status}.`
             });
         }
 
         if (isManagerRole(req.user.role)) {
-            const managerAccessError = getManagerPendingTransferDenial(req.user, transfer);
+            const managerAccessError =
+                getManagerPendingTransferDenial(req.user, transfer);
+
             if (managerAccessError) {
-                await session.abortTransaction();
-                return res.status(403).json({ success: false, message: managerAccessError });
+                return res.status(403).json({
+                    success: false,
+                    message: managerAccessError
+                });
             }
         } else if (!isAdminRole(req.user.role)) {
-            await session.abortTransaction();
-            return res.status(403).json({ success: false, message: "Access denied for this role." });
-        } else if (transfer.status !== "PENDING") {
-            await session.abortTransaction();
-            return res.status(400).json({
+            return res.status(403).json({
                 success: false,
-                message: "Admins can only cancel transfers while they are pending review."
+                message: "Access denied for this role."
             });
         }
 
-        if (transfer.status === "IN_TRANSIT") {
-            await restoreSourceBranchStock(transfer, req.user._id, session);
-        }
+        const cancelReason =
+            typeof reason === "string" && reason.trim()
+                ? reason.trim()
+                : "Transfer cancelled";
 
         transfer.status = "CANCELLED";
         transfer.cancelledAt = new Date();
-        transfer.cancelReason = reason || "Transfer cancelled";
-        pushActivityLog(transfer, "CANCELLED", transfer.cancelReason, req.user._id);
+        transfer.cancelReason = cancelReason;
 
-        await transfer.save({ session });
-        await session.commitTransaction();
+        pushActivityLog(
+            transfer,
+            "CANCELLED",
+            cancelReason,
+            req.user._id
+        );
 
-        await createAuditLog(req, "CANCEL_TRANSFER", {
-            transferId: transfer._id,
-            reason: transfer.cancelReason
+        await transfer.save();
+
+        // Do not manually call createAuditLog().
+        // auditMiddleware handles the audit asynchronously.
+
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode")
+            .populate(
+                "activityLogs.changedBy",
+                "firstName lastName email role"
+            );
+
+        return res.status(200).json({
+            success: true,
+            message: "Transfer cancelled successfully.",
+            data: populated
         });
-
-        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
-        await session.abortTransaction();
-        return res.status(500).json({ success: false, message: error.message });
-    } finally {
-        session.endSession();
+        console.error("Cancel stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || "Failed to cancel stock transfer."
+        });
     }
 };
-
 /** Admin progress tracking: reject a pending transfer request */
 const rejectTransfer = async (req, res) => {
     try {
@@ -635,7 +823,10 @@ const rejectTransfer = async (req, res) => {
         const { reason } = getRequestBody(req);
 
         if (!transfer) {
-            return res.status(404).json({ success: false, message: "Transfer not found." });
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found."
+            });
         }
 
         if (transfer.status !== "PENDING") {
@@ -648,17 +839,35 @@ const rejectTransfer = async (req, res) => {
         transfer.status = "REJECTED";
         transfer.rejectedAt = new Date();
         transfer.rejectReason = reason || "Transfer rejected";
-        pushActivityLog(transfer, "REJECTED", transfer.rejectReason, req.user._id);
+
+        pushActivityLog(
+            transfer,
+            "REJECTED",
+            transfer.rejectReason,
+            req.user._id
+        );
+
         await transfer.save();
 
-        await createAuditLog(req, "REJECT_TRANSFER", {
-            transferId: transfer._id,
-            reason: transfer.rejectReason
-        });
+        // No manual createAuditLog call.
+        // auditMiddleware logs STOCK_TRANSFER_REJECTED asynchronously.
 
-        return res.status(200).json({ success: true, data: transfer });
+        const populated = await StockTransfer.findById(transfer._id)
+            .populate("fromBranch", "name code")
+            .populate("toBranch", "name code")
+            .populate("items.product", "name sku barcode");
+
+        return res.status(200).json({
+            success: true,
+            data: populated
+        });
     } catch (error) {
-        return res.status(500).json({ success: false, message: error.message });
+        console.error("Reject stock transfer error:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 };
 

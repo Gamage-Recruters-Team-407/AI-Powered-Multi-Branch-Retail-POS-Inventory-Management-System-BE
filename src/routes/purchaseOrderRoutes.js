@@ -38,29 +38,43 @@ const requireMongoConnection = (req, res, next) => {
   next();
 };
 
-const formatOrder = (order) => ({
-  id: order._id,
-  po: order.poNumber,
-  supplier: order.supplierName,
-  branch: toBranchName(order.branch),
-  date: new Date(order.orderDate).toISOString().slice(0, 10),
-  expectedDate: order.expectedDate
-    ? new Date(order.expectedDate).toISOString().slice(0, 10)
-    : new Date(order.orderDate).toISOString().slice(0, 10),
-  amount: `$${order.totalAmount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`,
-  status: toDisplayStatus(order.status),
-  priority: order.priority || 'Normal',
-  category: order.category || 'Mixed Stock',
-  owner: order.owner || 'Procurement Team',
-  items: Number.isFinite(order.itemCount) && order.itemCount > 0
-    ? order.itemCount
-    : Array.isArray(order.items)
-      ? order.items.length
-      : 0,
-});
+const toAmountValue = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const formatOrder = (order) => {
+  const amountValue = toAmountValue(order.totalAmount ?? order.amount);
+
+  return {
+    id: order._id,
+    po: order.poNumber,
+    supplier: order.supplierName,
+    branch: toBranchName(order.branch),
+    date: new Date(order.orderDate).toISOString().slice(0, 10),
+    expectedDate: order.expectedDate
+      ? new Date(order.expectedDate).toISOString().slice(0, 10)
+      : new Date(order.orderDate).toISOString().slice(0, 10),
+    totalAmount: amountValue,
+    amount: `Rs. ${amountValue.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    status: toDisplayStatus(order.status),
+    priority: order.priority || 'Normal',
+    category: order.category || 'Mixed Stock',
+    owner: order.owner || 'Procurement Team',
+    items: Number.isFinite(order.itemCount) && order.itemCount > 0
+      ? order.itemCount
+      : Array.isArray(order.items)
+        ? order.items.length
+        : 0,
+  };
+};
 
 const parseBranchValue = (branch) => {
   if (!branch) return null;
@@ -156,6 +170,22 @@ const findOrCreateInventory = async ({ productId, branchId, session }) => {
   return inventory;
 };
 
+const generatePoNumber = async () => {
+  const currentYear = new Date().getFullYear();
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const suffix = `${Date.now()}`.slice(-6 + attempt);
+    const poNumber = `PO-${currentYear}-${suffix}`;
+    const existingOrder = await PurchaseOrder.findOne({ poNumber }).select('_id').lean();
+
+    if (!existingOrder) {
+      return poNumber;
+    }
+  }
+
+  return `PO-${currentYear}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+};
+
 router.get('/', async (req, res) => {
   if (!isMongoConnected()) {
     return res.json([]);
@@ -166,70 +196,87 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', requireMongoConnection, async (req, res) => {
-  const {
-    supplier,
-    supplierId,
-    branch,
-    date,
-    expectedDate,
-    amount,
-    priority,
-    category,
-    items,
-    owner,
-  } = req.body;
-  const normalizedItems = normalizeItems(items);
-  const computedAmount = normalizedItems.reduce(
-    (sum, item) => sum + (Number(item.quantity) * Number(item.costPrice || 0)),
-    0,
-  );
-  const totalAmount = Number.isFinite(Number(amount)) && Number(amount) > 0
-    ? Number(amount)
-    : computedAmount;
-  const orderDate = new Date(date);
-  const deliveryDate = expectedDate ? new Date(expectedDate) : orderDate;
-  const itemCount = normalizedItems.length > 0
-    ? normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
-    : Number(items);
+  try {
+    const {
+      supplier,
+      supplierName,
+      supplierId,
+      branch,
+      branchId,
+      date,
+      orderDate,
+      expectedDate,
+      amount,
+      totalAmount: requestTotalAmount,
+      priority,
+      category,
+      items,
+      itemCount: requestedItemCount,
+      owner,
+    } = req.body;
+    const supplierValue = String(supplier || supplierName || '').trim();
+    const branchValue = branch ?? branchId;
+    const normalizedItems = normalizeItems(items);
+    const computedAmount = normalizedItems.reduce(
+      (sum, item) => sum + (Number(item.quantity) * Number(item.costPrice || 0)),
+      0,
+    );
+    const requestedAmount = amount ?? requestTotalAmount;
+    const totalAmount = Number.isFinite(Number(requestedAmount)) && Number(requestedAmount) > 0
+      ? Number(requestedAmount)
+      : computedAmount;
+    const normalizedOrderDate = new Date(date || orderDate);
+    const deliveryDate = expectedDate ? new Date(expectedDate) : normalizedOrderDate;
+    const resolvedItemCount = normalizedItems.length > 0
+      ? normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+      : Number(requestedItemCount ?? items);
 
-  if (!supplier || !branch || !date || (!amount && normalizedItems.length === 0)) {
+    if (!supplierValue || !branchValue || !(date || orderDate) || (!requestedAmount && normalizedItems.length === 0)) {
+      return res.status(400).json({
+        message: 'Supplier, branch, date, and either amount or item lines are required.',
+      });
+    }
+
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be a positive number.' });
+    }
+
+    if (Number.isNaN(normalizedOrderDate.getTime())) {
+      return res.status(400).json({ message: 'Order date must be a valid date.' });
+    }
+
+    if (Number.isNaN(deliveryDate.getTime())) {
+      return res.status(400).json({ message: 'Expected date must be a valid date.' });
+    }
+
+    const order = await PurchaseOrder.create({
+      poNumber: await generatePoNumber(),
+      supplierName: supplierValue,
+      supplier: supplierId && mongoose.Types.ObjectId.isValid(supplierId)
+        ? new mongoose.Types.ObjectId(supplierId)
+        : undefined,
+      branch: parseBranchValue(branchValue),
+      orderDate: normalizedOrderDate,
+      expectedDate: deliveryDate,
+      totalAmount,
+      priority: ['Low', 'Normal', 'Medium', 'High'].includes(priority) ? priority : 'Normal',
+      category: category?.trim() || 'Mixed Stock',
+      itemCount: Number.isFinite(resolvedItemCount) && resolvedItemCount > 0 ? resolvedItemCount : 1,
+      owner: owner?.trim() || 'Procurement Team',
+      items: normalizedItems,
+      status: 'Pending',
+    });
+
+    return res.status(201).json(formatOrder(order));
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: 'Purchase order number already exists. Please try again.' });
+    }
+
     return res.status(400).json({
-      message: 'Supplier, branch, date, and either amount or item lines are required.',
+      message: error?.message || 'Purchase order was not saved.',
     });
   }
-
-  if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
-    return res.status(400).json({ message: 'Amount must be a positive number.' });
-  }
-
-  if (Number.isNaN(orderDate.getTime())) {
-    return res.status(400).json({ message: 'Order date must be a valid date.' });
-  }
-
-  if (Number.isNaN(deliveryDate.getTime())) {
-    return res.status(400).json({ message: 'Expected date must be a valid date.' });
-  }
-
-  const count = await PurchaseOrder.countDocuments();
-  const order = await PurchaseOrder.create({
-    poNumber: `PO-2026-${1049 + count}`,
-    supplierName: supplier.trim(),
-    supplier: supplierId && mongoose.Types.ObjectId.isValid(supplierId)
-      ? new mongoose.Types.ObjectId(supplierId)
-      : undefined,
-    branch: parseBranchValue(branch),
-    orderDate,
-    expectedDate: deliveryDate,
-    totalAmount,
-    priority: ['Low', 'Normal', 'Medium', 'High'].includes(priority) ? priority : 'Normal',
-    category: category?.trim() || 'Mixed Stock',
-    itemCount: Number.isFinite(itemCount) && itemCount > 0 ? itemCount : 1,
-    owner: owner?.trim() || 'Procurement Team',
-    items: normalizedItems,
-    status: 'Pending',
-  });
-
-  res.status(201).json(formatOrder(order));
 });
 
 router.patch(

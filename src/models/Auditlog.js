@@ -54,8 +54,9 @@ const auditLogSchema = new mongoose.Schema(
         "STOCK_TRANSFER_INITIATED",
         "STOCK_TRANSFER_APPROVED",
         "STOCK_TRANSFER_REJECTED",
+        "STOCK_TRANSFER_DISPATCHED",
+        "STOCK_TRANSFER_COMPLETED",
         "PURCHASE_ORDER_CREATED",
-        "PURCHASE_ORDER_APPROVED",
         // Security events
         "SUSPICIOUS_ACTIVITY",
         "UNAUTHORIZED_ACCESS",
