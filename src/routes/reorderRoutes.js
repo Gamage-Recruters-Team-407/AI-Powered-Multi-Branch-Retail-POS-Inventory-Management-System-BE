@@ -10,7 +10,7 @@ const {
 router.get(
     '/suggestions',
     protect,
-    authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'),
+    authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER', 'super_admin', 'admin', 'manager'),
     getReorderRecommendations
 );
 
@@ -18,7 +18,7 @@ router.get(
 router.post(
     '/suggestions/:id/approve',
     protect,
-    authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER'),
+    authorize('SUPER_ADMIN', 'ADMIN', 'MANAGER', 'super_admin', 'admin', 'manager'),
     approveReorderRecommendation
 );
 

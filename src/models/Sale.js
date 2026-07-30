@@ -1,11 +1,5 @@
 const mongoose = require("mongoose");
 
-// const saleItemSchema = new mongoose.Schema({
-  // product: {
-  //   type: mongoose.Schema.Types.ObjectId,
-  //   ref: "Product",
-  //   required: true,
-  // },
   const saleItemSchema = new mongoose.Schema({
     product: {
     type: mongoose.Schema.Types.ObjectId,
