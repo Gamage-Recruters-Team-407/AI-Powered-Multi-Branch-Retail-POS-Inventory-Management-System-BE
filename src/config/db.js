@@ -1,140 +1,40 @@
-const dns = require('dns');
-const { promisify } = require('util');
 const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', false);
-mongoose.set('bufferCommands', true);
 
-const createResolver = () => {
-	const resolver = new dns.Resolver();
-	const servers = (process.env.MONGO_DNS_SERVERS || '8.8.8.8,1.1.1.1')
-		.split(',')
-		.map((s) => s.trim())
-		.filter(Boolean);
-	resolver.setServers(servers.length ? servers : ['8.8.8.8', '1.1.1.1']);
-	return {
-		resolveSrv: promisify(resolver.resolveSrv.bind(resolver)),
-		resolveTxt: promisify(resolver.resolveTxt.bind(resolver)),
-	};
-};
-
-const parseSrvUri = (uri) => {
-	const body = uri.replace('mongodb+srv://', '');
-	const at = body.indexOf('@');
-	const creds = body.slice(0, at);
-	let rest = body.slice(at + 1);
-
-	let host = rest;
-	let path = '';
-	let query = '';
-
-	const slash = rest.indexOf('/');
-	const qmark = rest.indexOf('?');
-
-	if (slash !== -1) {
-		host = rest.slice(0, slash);
-		rest = rest.slice(slash);
-		const qInPath = rest.indexOf('?');
-		if (qInPath !== -1) {
-			path = rest.slice(0, qInPath);
-			query = rest.slice(qInPath);
-		} else {
-			path = rest;
-		}
-	} else if (qmark !== -1) {
-		host = rest.slice(0, qmark);
-		query = rest.slice(qmark);
-	}
-
-	return { creds, host, path, query };
-};
-
-const resolveMongoUri = async (uri) => {
-	if (!uri || !uri.startsWith('mongodb+srv://')) {
-		return uri;
-	}
-
-	const { resolveSrv, resolveTxt } = createResolver();
-	const { creds, host, path, query } = parseSrvUri(uri);
-	const srvName = `_mongodb._tcp.${host}`;
-
-	const [srvRecords, txtRecords] = await Promise.all([
-		resolveSrv(srvName),
-		resolveTxt(srvName).catch(() => []),
-	]);
-
-	const hosts = srvRecords.map((r) => `${r.name}:${r.port}`).join(',');
-	const params = new URLSearchParams(query.replace(/^\?/, ''));
-
-	for (const txt of txtRecords) {
-		const entry = Array.isArray(txt) ? txt.join('') : String(txt);
-		for (const part of entry.split('&')) {
-			const [key, value] = part.split('=');
-			if (key && value) params.set(key, value);
-		}
-	}
-
-	if (!params.has('ssl') && !params.has('tls')) {
-		params.set('ssl', 'true');
-	}
-
-	const qs = params.toString();
-	return `mongodb://${creds}@${hosts}${path}${qs ? `?${qs}` : ''}`;
-};
+let isConnected = false;
 
 const connectDB = async () => {
 	const mongoUri = process.env.MONGO_URI;
 	const dbName = process.env.DB_NAME || 'retail_pos_db';
 
 	if (!mongoUri) {
-		const errorMsg = 'MONGO_URI environment variable is missing. Please add MONGO_URI to Vercel Environment Variables.';
-		console.error(errorMsg);
-		throw new Error(errorMsg);
+		const msg = 'MONGO_URI environment variable is missing!';
+		console.error(msg);
+		throw new Error(msg);
 	}
 
-	// Reuse existing connection if already connected (vital for serverless warm instances)
-	if (mongoose.connection.readyState === 1) {
+	// Reuse existing connection (critical for serverless - Vercel/Lambda warm instances)
+	if (isConnected && mongoose.connection.readyState === 1) {
+		console.log('Reusing existing MongoDB connection.');
 		return mongoose.connection;
 	}
 
-	// Try direct Mongoose connection first (standard for Vercel/Linux/Node)
 	try {
 		const conn = await mongoose.connect(mongoUri, {
 			dbName,
-			serverSelectionTimeoutMS: 5000,
-			connectTimeoutMS: 5000,
+			serverSelectionTimeoutMS: 10000,
+			connectTimeoutMS: 10000,
+			socketTimeoutMS: 45000,
 		});
 
-		console.log(
-			`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`,
-		);
-
+		isConnected = true;
+		console.log(`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
 		return conn;
-	} catch (directError) {
-		// On Vercel / serverless environment, skip custom DNS fallback that hangs Lambda
-		if (process.env.VERCEL) {
-			console.error(`MongoDB Vercel Connection Error: ${directError.message}`);
-			throw directError;
-		}
-
-		console.warn(`Direct MongoDB connection failed: ${directError.message}. Trying custom SRV resolver...`);
-		try {
-			const resolvedUri = await resolveMongoUri(mongoUri);
-			const conn = await mongoose.connect(resolvedUri, {
-				dbName,
-				serverSelectionTimeoutMS: 5000,
-				connectTimeoutMS: 5000,
-			});
-
-			console.log(
-				`MongoDB Connected (via SRV resolver): ${conn.connection.host}/${conn.connection.name}`,
-			);
-
-			return conn;
-		} catch (error) {
-			console.error(`MongoDB connection failed completely: ${error.message}`);
-			throw error;
-		}
+	} catch (error) {
+		isConnected = false;
+		console.error(`MongoDB connection failed: ${error.message}`);
+		throw error;
 	}
 };
 
