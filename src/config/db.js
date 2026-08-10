@@ -91,9 +91,14 @@ const connectDB = async () => {
 		return null;
 	}
 
+	// Reuse existing connection if already connected (vital for serverless warm instances)
+	if (mongoose.connection.readyState === 1) {
+		return mongoose.connection;
+	}
+
+	// Try direct Mongoose connection first (standard for Vercel/Linux/Node)
 	try {
-		const resolvedUri = await resolveMongoUri(mongoUri);
-		const conn = await mongoose.connect(resolvedUri, {
+		const conn = await mongoose.connect(mongoUri, {
 			dbName,
 			serverSelectionTimeoutMS: 8000,
 		});
@@ -103,9 +108,24 @@ const connectDB = async () => {
 		);
 
 		return conn;
-	} catch (error) {
-		console.warn(`MongoDB connection failed: ${error.message}`);
-		return null;
+	} catch (directError) {
+		console.warn(`Direct MongoDB connection failed: ${directError.message}. Trying custom SRV resolver...`);
+		try {
+			const resolvedUri = await resolveMongoUri(mongoUri);
+			const conn = await mongoose.connect(resolvedUri, {
+				dbName,
+				serverSelectionTimeoutMS: 8000,
+			});
+
+			console.log(
+				`MongoDB Connected (via SRV resolver): ${conn.connection.host}/${conn.connection.name}`,
+			);
+
+			return conn;
+		} catch (error) {
+			console.error(`MongoDB connection failed completely: ${error.message}`);
+			throw error;
+		}
 	}
 };
 
