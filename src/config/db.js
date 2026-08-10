@@ -3,7 +3,7 @@ const { promisify } = require('util');
 const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', false);
-mongoose.set('bufferCommands', true);
+mongoose.set('bufferCommands', false);
 
 const createResolver = () => {
 	const resolver = new dns.Resolver();
@@ -100,7 +100,8 @@ const connectDB = async () => {
 	try {
 		const conn = await mongoose.connect(mongoUri, {
 			dbName,
-			serverSelectionTimeoutMS: 8000,
+			serverSelectionTimeoutMS: 5000,
+			connectTimeoutMS: 5000,
 		});
 
 		console.log(
@@ -109,12 +110,19 @@ const connectDB = async () => {
 
 		return conn;
 	} catch (directError) {
+		// On Vercel / serverless environment, skip custom DNS fallback that hangs Lambda
+		if (process.env.VERCEL) {
+			console.error(`MongoDB Vercel Connection Error: ${directError.message}`);
+			throw directError;
+		}
+
 		console.warn(`Direct MongoDB connection failed: ${directError.message}. Trying custom SRV resolver...`);
 		try {
 			const resolvedUri = await resolveMongoUri(mongoUri);
 			const conn = await mongoose.connect(resolvedUri, {
 				dbName,
-				serverSelectionTimeoutMS: 8000,
+				serverSelectionTimeoutMS: 5000,
+				connectTimeoutMS: 5000,
 			});
 
 			console.log(
