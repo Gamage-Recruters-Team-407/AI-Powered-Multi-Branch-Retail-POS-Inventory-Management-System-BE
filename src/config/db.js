@@ -3,7 +3,7 @@ const { promisify } = require('util');
 const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', false);
-mongoose.set('bufferCommands', false);
+mongoose.set('bufferCommands', true);
 
 const createResolver = () => {
 	const resolver = new dns.Resolver();
@@ -87,8 +87,9 @@ const connectDB = async () => {
 	const dbName = process.env.DB_NAME || 'retail_pos_db';
 
 	if (!mongoUri) {
-		console.warn('MONGO_URI is missing. Server started without MongoDB.');
-		return null;
+		const errorMsg = 'MONGO_URI environment variable is missing. Please add MONGO_URI to Vercel Environment Variables.';
+		console.error(errorMsg);
+		throw new Error(errorMsg);
 	}
 
 	// Reuse existing connection if already connected (vital for serverless warm instances)
