@@ -3,7 +3,7 @@ const { promisify } = require('util');
 const mongoose = require('mongoose');
 
 mongoose.set('strictQuery', false);
-mongoose.set('bufferCommands', false);
+mongoose.set('bufferCommands', true);
 
 const createResolver = () => {
 	const resolver = new dns.Resolver();

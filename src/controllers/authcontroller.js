@@ -64,11 +64,14 @@ const register = async (req, res) => {
 // ── 4. LOGIN USER FUNCTION ──────────────────────────────────────────────────
 const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const rawEmail = req.body.email ? String(req.body.email).trim() : "";
+    const password = req.body.password ? String(req.body.password).trim() : "";
 
-    if (!email || !password) {
+    if (!rawEmail || !password) {
       return res.status(400).json({ success: false, message: "Email and password are required." });
     }
+
+    const email = rawEmail.toLowerCase();
 
     const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.ip || "unknown").split(",")[0].trim();
 
@@ -86,7 +89,9 @@ const loginUser = async (req, res) => {
       return res.status(429).json({ success: false, message: bruteCheck.reason, remainingMinutes: bruteCheck.remainingMinutes });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ 
+      email: new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') 
+    }).select("+password");
 
     if (!user) {
       await SecurityService.recordLoginAttempt({ email, ipAddress: ip, userAgent: req.headers["user-agent"], success: false, failureReason: "USER_NOT_FOUND" });

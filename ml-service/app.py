@@ -12,7 +12,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pickle
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://hirunahansindugamage_db_user:OSkevLS6a9tHpm2i@cluster1.gpz0msi.mongodb.net/?appName=Cluster1')
 try:
