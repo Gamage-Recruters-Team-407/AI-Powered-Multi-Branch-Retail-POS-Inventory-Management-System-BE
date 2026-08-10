@@ -4,7 +4,7 @@ const Inventory = require("../models/Inventory");
 const InventoryMovement = require("../models/InventoryMovement");
 const Branch = require("../models/Branch");
 const Product = require("../models/Product");
-const AuditLog = require("../models/Auditlog");
+const AuditLog = require("../models/AuditLog");
 const {
 	isAdminRole,
 	isManagerRole,
