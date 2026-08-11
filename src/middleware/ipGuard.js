@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const SecurityService = require("../services/securityService");
 const AuditService = require("../services/auditService");
 
@@ -8,6 +9,11 @@ const AuditService = require("../services/auditService");
  * app.use(ipGuard);
  */
 const ipGuard = async (req, res, next) => {
+  // Skip DB-dependent IP check if MongoDB is not connected yet (e.g. Vercel cold start)
+  if (mongoose.connection.readyState !== 1) {
+    return next();
+  }
+
   try {
     const ip = (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || req.ip || "").split(",")[0].trim();
 
