@@ -1,65 +1,54 @@
-/**
- * Serverless-safe MongoDB connection manager.
- * Uses a global cached connection to reuse connections across
- * Vercel function invocations (hot reloads & warm instances).
- */
-
 const mongoose = require('mongoose');
+const dns = require('dns');
+
+// Fix Node.js DNS resolution order for Windows and Vercel/Lambda serverless
+if (dns.setDefaultResultOrder) {
+	try {
+		dns.setDefaultResultOrder('ipv4first');
+	} catch (_) {}
+}
+
+// Force Google/Cloudflare DNS to fix SRV lookup failures on serverless environments
+try {
+	dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+} catch (_) {}
 
 mongoose.set('strictQuery', false);
 
-const MONGODB_URI = process.env.MONGO_URI;
-const DB_NAME = process.env.DB_NAME || 'retail_pos_db';
-
-// Use global to maintain connection cache across serverless function invocations
-if (!global._mongooseCache) {
-  global._mongooseCache = { conn: null, promise: null };
-}
-const cached = global._mongooseCache;
+let isConnected = false;
 
 const connectDB = async () => {
-  if (!MONGODB_URI) {
-    throw new Error(
-      'MONGO_URI environment variable is missing. ' +
-      'Add it in Vercel Project Settings → Environment Variables.'
-    );
-  }
+	const mongoUri = process.env.MONGO_URI;
+	const dbName = process.env.DB_NAME || 'retail_pos_db';
 
-  // Return cached connection immediately if available
-  if (cached.conn && mongoose.connection.readyState === 1) {
-    return cached.conn;
-  }
+	if (!mongoUri) {
+		const msg = 'MONGO_URI environment variable is missing!';
+		console.error(msg);
+		throw new Error(msg);
+	}
 
-  // If a connection promise is in flight, wait for it (prevents duplicate connections)
-  if (!cached.promise) {
-    cached.promise = mongoose
-      .connect(MONGODB_URI, {
-        dbName: DB_NAME,
-        bufferCommands: false, // Fail fast if connection drops instead of hanging
-        serverSelectionTimeoutMS: 10000,
-        connectTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-        maxPoolSize: 10, // Maintain up to 10 connections in pool
-      })
-      .then((mongoose) => {
-        console.log(`MongoDB Connected: ${mongoose.connection.host}/${mongoose.connection.name}`);
-        return mongoose;
-      })
-      .catch((err) => {
-        cached.promise = null; // Reset so next request retries
-        console.error(`MongoDB connection failed: ${err.message}`);
-        throw err;
-      });
-  }
+	// Reuse existing connection (critical for serverless - Vercel/Lambda warm instances)
+	if (isConnected && mongoose.connection.readyState === 1) {
+		return mongoose.connection;
+	}
 
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
+	try {
+		const conn = await mongoose.connect(mongoUri, {
+			dbName,
+			family: 4, // Force IPv4 to prevent IPv6 DNS hangs on Vercel/Atlas
+			serverSelectionTimeoutMS: 10000,
+			connectTimeoutMS: 10000,
+			socketTimeoutMS: 45000,
+		});
 
-  return cached.conn;
+		isConnected = true;
+		console.log(`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
+		return conn;
+	} catch (error) {
+		isConnected = false;
+		console.error(`MongoDB connection failed: ${error.message}`);
+		throw error;
+	}
 };
 
 module.exports = connectDB;
