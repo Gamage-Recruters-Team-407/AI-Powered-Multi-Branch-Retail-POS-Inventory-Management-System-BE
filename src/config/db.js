@@ -15,7 +15,11 @@ try {
 
 mongoose.set('strictQuery', false);
 
-let isConnected = false;
+// Global connection caching for serverless environments (Vercel / Lambda)
+let cached = global.mongoose;
+if (!cached) {
+	cached = global.mongoose = { conn: null, promise: null };
+}
 
 const connectDB = async () => {
 	const mongoUri = process.env.MONGO_URI;
@@ -27,28 +31,34 @@ const connectDB = async () => {
 		throw new Error(msg);
 	}
 
-	// Reuse existing connection (critical for serverless - Vercel/Lambda warm instances)
-	if (isConnected && mongoose.connection.readyState === 1) {
-		return mongoose.connection;
+	if (cached.conn && mongoose.connection.readyState === 1) {
+		return cached.conn;
 	}
 
-	try {
-		const conn = await mongoose.connect(mongoUri, {
+	if (!cached.promise) {
+		const opts = {
 			dbName,
-			family: 4, // Force IPv4 to prevent IPv6 DNS hangs on Vercel/Atlas
+			family: 4, // Force IPv4
 			serverSelectionTimeoutMS: 10000,
 			connectTimeoutMS: 10000,
 			socketTimeoutMS: 45000,
-		});
+		};
 
-		isConnected = true;
-		console.log(`MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
-		return conn;
-	} catch (error) {
-		isConnected = false;
-		console.error(`MongoDB connection failed: ${error.message}`);
-		throw error;
+		cached.promise = mongoose.connect(mongoUri, opts).then((m) => {
+			console.log(`MongoDB Connected: ${m.connection.host}/${m.connection.name}`);
+			return m.connection;
+		});
 	}
+
+	try {
+		cached.conn = await cached.promise;
+	} catch (e) {
+		cached.promise = null;
+		console.error(`MongoDB connection failed: ${e.message}`);
+		throw e;
+	}
+
+	return cached.conn;
 };
 
 module.exports = connectDB;

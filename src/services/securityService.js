@@ -15,13 +15,23 @@ const SecurityService = {
     if (_policyCache && now - _policyCacheAt < CACHE_TTL_MS) {
       return _policyCache;
     }
-    let policy = await SecurityPolicy.findOne({ isActive: true }).lean();
-    if (!policy) {
-      policy = await SecurityService.createDefaultPolicy();
+    try {
+      let policy = await SecurityPolicy.findOne({ isActive: true }).lean();
+      if (!policy) {
+        policy = await SecurityService.createDefaultPolicy();
+      }
+      _policyCache = policy;
+      _policyCacheAt = now;
+      return policy;
+    } catch (err) {
+      console.warn("[SecurityService] Unable to fetch policy from DB, using fallback defaults:", err.message);
+      return {
+        name: "fallback",
+        lockoutPolicy: { enabled: true, maxAttempts: 5, lockoutDurationMinutes: 15, resetAfterMinutes: 30 },
+        ipPolicy: { enableBlacklist: false, enableWhitelist: false, blacklist: [], whitelist: [] },
+        passwordPolicy: { minLength: 8, requireUppercase: true, requireLowercase: true, requireNumbers: true, requireSpecialChar: true }
+      };
     }
-    _policyCache = policy;
-    _policyCacheAt = now;
-    return policy;
   },
 
   invalidatePolicyCache() {
