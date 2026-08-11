@@ -622,14 +622,14 @@ exports.exportPDF = async (req, res, next) => {
         const tableTop = doc.y;
         
         const drawTableHeader = (yPos) => {
-            doc.rect(50, yPos - 4, 510, 20).fill('#2563eb');
+            doc.rect(50, yPos - 4, 495, 20).fill('#2563eb');
             doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
             doc.text('REPORT ID', 55, yPos);
             doc.text('BRANCH', 140, yPos);
             doc.text('CASHIER / TYPE', 230, yPos);
             doc.text('DATE / PERIOD', 330, yPos);
             doc.text('AMOUNT', 415, yPos, { width: 75, align: 'right' });
-            doc.text('STATUS', 495, yPos, { width: 65, align: 'right' });
+            doc.text('STATUS', 495, yPos, { width: 50, align: 'right' });
         };
 
         drawTableHeader(tableTop);
@@ -653,7 +653,7 @@ exports.exportPDF = async (req, res, next) => {
             const amountStr = typeof rawAmount === 'number' ? `LKR ${rawAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(rawAmount);
             const statusStr = item.status || 'Completed';
 
-            doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(50, y + 14).lineTo(560, y + 14).stroke();
+            doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(50, y + 14).lineTo(545, y + 14).stroke();
 
             doc.fillColor('#334155').font('Helvetica').fontSize(8.5);
             doc.text(idStr, 55, y, { width: 80, height: 15, ellipsis: true });
@@ -661,7 +661,7 @@ exports.exportPDF = async (req, res, next) => {
             doc.text(cashierOrType, 230, y, { width: 95, height: 15, ellipsis: true });
             doc.text(dateStr, 330, y, { width: 80, height: 15, ellipsis: true });
             doc.text(amountStr, 415, y, { width: 75, align: 'right' });
-            doc.text(statusStr, 495, y, { width: 65, align: 'right' });
+            doc.text(statusStr, 495, y, { width: 50, align: 'right' });
 
             y += 20;
         });

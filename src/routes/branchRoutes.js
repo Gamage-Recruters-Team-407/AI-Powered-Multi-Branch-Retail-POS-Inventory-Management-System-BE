@@ -12,9 +12,8 @@ const {
   getBranchSales,
   getBranchEmployees,
   getBranchPerformance,
-  getAllBranchesWithPerformance,
   updateBranchSettings,
-} = require("../controllers/branchController.js");
+} = require("../controllers/branchController");
 
 //make manager baranch accssible to only for Admin
 const { protect } = require("../middleware/authMiddleware");
@@ -42,7 +41,7 @@ router.post(
 router.get(
   "/",
   protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER", "CASHIER"),
+  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
   getAllBranches
 );
 
@@ -59,14 +58,6 @@ router.get(
 //   authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER"),
 //   searchBranches
 // );
-
-// Get all branches WITH performance stats (for dashboard)
-router.get(
-  "/performance/all",
-  protect,
-  authorizeRoles("ADMIN", "SUPER_ADMIN", "MANAGER", "CASHIER"),
-  getAllBranchesWithPerformance
-);
 
 // Get single branch
 router.get(

@@ -1,82 +1,5 @@
 const Supplier = require("../models/Supplier");
 
-const DEFAULT_PERFORMANCE = {
-    onTimeDelivery: 95,
-    qualityScore: 95,
-    leadTimeDays: 3,
-    returnRate: 0,
-};
-
-const escapeRegex = (value = "") => value.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-
-const normalizePoStatus = (status) => {
-    const normalized = String(status || '').trim().toUpperCase();
-    if (['RECEIVED', 'DELIVERED'].includes(normalized)) return 'delivered';
-    if (['REJECTED', 'CANCELLED', 'CANCELED'].includes(normalized)) return 'cancelled';
-    return 'pending';
-};
-
-const buildRecommendation = ({ rating = 5, onTimeDelivery = 95, returnRate = 0, qualityScore = 95, leadTimeDays = 3 }) => {
-    if (rating >= 4.5 && onTimeDelivery >= 90) {
-        return "Excellent performance. Highly recommended to renew contract.";
-    }
-    if (returnRate > 10 || qualityScore < 80) {
-        return "Caution: High return rate or low quality. Consider auditing quality processes.";
-    }
-    if (onTimeDelivery < 80 || leadTimeDays > 5) {
-        return "Warning: Slow delivery times. Recommend discussing lead times with supplier.";
-    }
-    return "Stable performance. Standard operations recommended.";
-};
-
-const createPurchaseOrderRollup = (purchaseOrders = []) => {
-    const grouped = new Map();
-
-    for (const po of purchaseOrders) {
-        const supplierId = po.supplier ? po.supplier.toString() : null;
-        const supplierName = String(po.supplierName || '').trim();
-        const key = supplierId || supplierName.toLowerCase();
-
-        if (!key) {
-            continue;
-        }
-
-        const current = grouped.get(key) || {
-            supplierId,
-            companyName: supplierName || 'Unknown Supplier',
-            totalSpend: 0,
-            purchaseOrderCount: 0,
-            deliveredCount: 0,
-            cancelledCount: 0,
-            pendingCount: 0,
-            onTimeCount: 0,
-        };
-
-        current.companyName = current.companyName || supplierName || 'Unknown Supplier';
-        current.supplierId = current.supplierId || supplierId;
-        current.totalSpend += Number(po.totalAmount || 0);
-        current.purchaseOrderCount += 1;
-
-        const status = normalizePoStatus(po.status);
-        if (status === 'delivered') {
-            current.deliveredCount += 1;
-            const expected = po.expectedDate ? new Date(po.expectedDate).getTime() : null;
-            const fulfilled = po.updatedAt ? new Date(po.updatedAt).getTime() : null;
-            if (!expected || !fulfilled || fulfilled <= expected) {
-                current.onTimeCount += 1;
-            }
-        } else if (status === 'cancelled') {
-            current.cancelledCount += 1;
-        } else {
-            current.pendingCount += 1;
-        }
-
-        grouped.set(key, current);
-    }
-
-    return grouped;
-};
-
 class SupplierService {
     // CREATE SUPPLIER
     async createSupplier(data) {
@@ -299,98 +222,56 @@ class SupplierService {
         if (mongoose.connection.readyState !== 1) {
             return [];
         }
-        const [suppliers, purchaseOrders] = await Promise.all([
-            Supplier.find({}).lean(),
-            PurchaseOrder.find({}, 'supplier supplierName totalAmount status expectedDate updatedAt').lean(),
-        ]);
-
-        const purchaseOrderRollup = createPurchaseOrderRollup(purchaseOrders);
-        const reports = suppliers.map((supplier) => {
-            const directMatch = purchaseOrderRollup.get(String(supplier._id));
-            const nameMatch = purchaseOrderRollup.get(String(supplier.companyName || '').trim().toLowerCase());
-            const rollup = directMatch || nameMatch;
-
-            const performance = {
-                ...DEFAULT_PERFORMANCE,
-                ...(supplier.performance || {}),
-            };
-
-            if (rollup?.purchaseOrderCount) {
-                const deliveredBase = rollup.deliveredCount || 0;
-                performance.onTimeDelivery = deliveredBase > 0
-                    ? Number(((rollup.onTimeCount / deliveredBase) * 100).toFixed(2))
-                    : performance.onTimeDelivery;
-                performance.returnRate = Number(((rollup.cancelledCount / rollup.purchaseOrderCount) * 100).toFixed(2));
-            }
-
-            const rating = Number(supplier.rating || 5);
-            const recommendation = supplier.aiRecommendation || buildRecommendation({
-                rating,
-                onTimeDelivery: performance.onTimeDelivery,
-                returnRate: performance.returnRate,
-                qualityScore: performance.qualityScore,
-                leadTimeDays: performance.leadTimeDays,
+        const suppliers = await Supplier.find({});
+        const reports = await Promise.all(suppliers.map(async (supplier) => {
+            const purchaseOrderCount = await PurchaseOrder.countDocuments({
+                $or: [
+                    { supplier: supplier._id },
+                    {
+                        supplierName: {
+                            $regex: new RegExp(
+                                "^" + supplier.companyName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + "$",
+                                "i",
+                            ),
+                        },
+                    },
+                ],
             });
 
-            if (rollup) {
-                purchaseOrderRollup.delete(String(supplier._id));
-                purchaseOrderRollup.delete(String(supplier.companyName || '').trim().toLowerCase());
+            let recommendation = supplier.aiRecommendation;
+            if (!recommendation) {
+                recommendation = "Stable performance. Standard operations recommended.";
+                const rating = supplier.rating || 5.0;
+                const onTime = supplier.performance?.onTimeDelivery || 95;
+                const retRate = supplier.performance?.returnRate || 0;
+                const quality = supplier.performance?.qualityScore || 95;
+                const leadTime = supplier.performance?.leadTimeDays || 3;
+
+                if (rating >= 4.5 && onTime >= 90) {
+                    recommendation = "Excellent performance. Highly recommended to renew contract.";
+                } else if (retRate > 10 || quality < 80) {
+                    recommendation = "Caution: High return rate or low quality. Consider auditing quality processes.";
+                } else if (onTime < 80 || leadTime > 5) {
+                    recommendation = "Warning: Slow delivery times. Recommend discussing lead times with supplier.";
+                }
             }
 
             return {
                 id: supplier._id,
                 companyName: supplier.companyName,
                 category: supplier.category,
-                rating,
+                rating: supplier.rating,
                 status: supplier.status,
-                totalSpend: Math.max(Number(supplier.totalSpend || 0), Number(rollup?.totalSpend || 0)),
-                purchaseOrderCount: Number(rollup?.purchaseOrderCount || 0),
-                performance,
+                totalSpend: supplier.totalSpend,
+                purchaseOrderCount,
+                performance: supplier.performance || {},
                 contractStatus: supplier.contract?.status || "Under Negotiation",
                 contractEndDate: supplier.contract?.endDate || null,
                 aiRecommendation: recommendation
             };
-        });
+        }));
 
-        for (const rollup of purchaseOrderRollup.values()) {
-            const performance = {
-                ...DEFAULT_PERFORMANCE,
-                onTimeDelivery: rollup.deliveredCount > 0
-                    ? Number(((rollup.onTimeCount / rollup.deliveredCount) * 100).toFixed(2))
-                    : DEFAULT_PERFORMANCE.onTimeDelivery,
-                returnRate: rollup.purchaseOrderCount > 0
-                    ? Number(((rollup.cancelledCount / rollup.purchaseOrderCount) * 100).toFixed(2))
-                    : DEFAULT_PERFORMANCE.returnRate,
-            };
-            const rating = Number((performance.onTimeDelivery / 20).toFixed(1));
-
-            reports.push({
-                id: rollup.supplierId || `po-${escapeRegex(rollup.companyName).toLowerCase()}`,
-                companyName: rollup.companyName,
-                category: 'Other',
-                rating,
-                status: 'Active',
-                totalSpend: Number(rollup.totalSpend || 0),
-                purchaseOrderCount: Number(rollup.purchaseOrderCount || 0),
-                performance,
-                contractStatus: "Under Negotiation",
-                contractEndDate: null,
-                aiRecommendation: buildRecommendation({
-                    rating,
-                    onTimeDelivery: performance.onTimeDelivery,
-                    returnRate: performance.returnRate,
-                    qualityScore: performance.qualityScore,
-                    leadTimeDays: performance.leadTimeDays,
-                }),
-            });
-        }
-
-        return reports.sort((a, b) => {
-            if ((b.performance?.onTimeDelivery || 0) !== (a.performance?.onTimeDelivery || 0)) {
-                return (b.performance?.onTimeDelivery || 0) - (a.performance?.onTimeDelivery || 0);
-            }
-            return (b.purchaseOrderCount || 0) - (a.purchaseOrderCount || 0);
-        });
+        return reports;
     }
 
     // UPDATE CONTRACT

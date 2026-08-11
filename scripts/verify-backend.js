@@ -9,7 +9,7 @@ const app = require('../src/app');
 const routes = [
   { method: 'GET', path: '/api/health', expect: [200] },
   { method: 'GET', path: '/', expect: [200] },
-  { method: 'GET', path: '/api/branches', expect: [200, 401] },
+  { method: 'GET', path: '/api/branches', expect: [200] },
   { method: 'GET', path: '/api/products', expect: [200] },
   { method: 'GET', path: '/api/promotions', expect: [200, 503] },
   { method: 'GET', path: '/api/suppliers', expect: [200] },

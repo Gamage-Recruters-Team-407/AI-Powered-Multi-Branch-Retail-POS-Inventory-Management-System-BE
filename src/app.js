@@ -40,35 +40,11 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 
-// Allowed Origins for CORS
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-].filter(Boolean);
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is allowed or in development mode
-    if (
-      process.env.NODE_ENV !== 'production' ||
-      allowedOrigins.includes(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
-    ) {
-      return callback(null, true);
-    }
-    
-    return callback(null, true);
-  },
+// Middleware & CORS settings (ඔයාගේ CLIENT_URL fallback එක සමඟ)
+app.use(cors({
+  origin: process.env.CLIENT_URL || process.env.FRONTEND_URL || '*',
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-};
-
-app.use(cors(corsOptions));
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

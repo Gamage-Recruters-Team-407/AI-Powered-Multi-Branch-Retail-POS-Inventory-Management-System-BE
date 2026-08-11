@@ -161,25 +161,6 @@ class DashboardService {
    */
   async calculateInventoryMetrics(filterQuery) {
     try {
-      // const inventoryData = await Inventory.aggregate([
-      //   {
-      //     $lookup: {
-      //       from: 'products',
-      //       localField: 'productId',
-      //       foreignField: '_id',
-      //       as: 'product',
-      //     },
-      //   },
-      //   {
-      //     $group: {
-      //       _id: null,
-      //       totalItems: { $sum: '$quantity' },
-      //       totalValue: { $sum: { $multiply: ['$quantity', { $arrayElemAt: ['$product.price', 0] }] } },
-      //       averagePrice: { $avg: { $arrayElemAt: ['$product.price', 0] } },
-      //     },
-      //   },
-      // ]);
-
       const inventoryData = await Inventory.aggregate([
         {
           $lookup: {
@@ -190,23 +171,11 @@ class DashboardService {
           },
         },
         {
-          $addFields: {
-            productPrice: { $arrayElemAt: ['$product.price', 0] }
-          }
-        },
-        {
           $group: {
             _id: null,
             totalItems: { $sum: '$quantity' },
-            totalValue: { 
-              $sum: { 
-                $multiply: [
-                  '$quantity', 
-                  { $ifNull: ['$productPrice', 0] }  // null safe
-                ] 
-              } 
-            },
-            averagePrice: { $avg: '$productPrice' },
+            totalValue: { $sum: { $multiply: ['$quantity', { $arrayElemAt: ['$product.price', 0] }] } },
+            averagePrice: { $avg: { $arrayElemAt: ['$product.price', 0] } },
           },
         },
       ]);

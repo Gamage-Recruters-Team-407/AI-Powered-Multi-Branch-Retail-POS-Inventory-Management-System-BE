@@ -1,7 +1,7 @@
 const intents = [
   {
     intent: 'CREATE_PO',
-    keywords: ['create po', 'create a po', 'purchase order', 'buy stock', 'order stock'],
+    keywords: ['create po', 'create a po', 'purchase order', 'buy', 'order stock'],
     apiEndpoint: null,
     params: {}
   },
@@ -60,12 +60,6 @@ const intents = [
     params: {}
   },
   {
-    intent: 'BRANCH_PERFORMANCE',
-    keywords: ['compare sales', 'branch performance', 'branches today', 'compare branches', 'branch'],
-    apiEndpoint: null,
-    params: {}
-  },
-  {
     intent: 'ANALYTICS',
     keywords: ['revenue', 'sales', 'kpi', 'insight', 'stats', 'performance'],
     apiEndpoint: '/predict/analytics',
@@ -80,7 +74,7 @@ const intents = [
  * @returns {object} The detected intent and endpoint details
  */
 const detectIntent = (message, customerId = null) => {
-  const lowerMessage = message.toLowerCase().replace(/[-_]/g, ' ');
+  const lowerMessage = message.toLowerCase();
   
   for (const intentObj of intents) {
     for (const keyword of intentObj.keywords) {

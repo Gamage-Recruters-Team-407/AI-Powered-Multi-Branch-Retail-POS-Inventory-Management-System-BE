@@ -4,7 +4,7 @@ const Inventory = require("../models/Inventory");
 const InventoryMovement = require("../models/InventoryMovement");
 const Branch = require("../models/Branch");
 const Product = require("../models/Product");
-const AuditLog = require("../models/AuditLog");
+const AuditLog = require("../models/Auditlog");
 const {
 	isAdminRole,
 	isManagerRole,
@@ -327,13 +327,7 @@ const createTransfer = async (req, res) => {
             itemCount: items.length
         });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(201).json({ success: true, data: populated });
+        return res.status(201).json({ success: true, data: transfer });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -396,13 +390,7 @@ const updateTransfer = async (req, res) => {
 
         await createAuditLog(req, "UPDATE_TRANSFER", { transferId: transfer._id });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -470,13 +458,7 @@ const dispatchTransfer = async (req, res) => {
 
         await createAuditLog(req, "DISPATCH_TRANSFER", { transferId: transfer._id });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         await session.abortTransaction();
         return res.status(500).json({ success: false, message: error.message });
@@ -531,13 +513,7 @@ const completeTransfer = async (req, res) => {
 
         await createAuditLog(req, "COMPLETE_TRANSFER", { transferId: transfer._id });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         await session.abortTransaction();
         return res.status(500).json({ success: false, message: error.message });
@@ -582,12 +558,7 @@ const approveTransfer = async (req, res) => {
 
         await createAuditLog(req, "APPROVE_TRANSFER", { transferId: transfer._id });
 
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }
@@ -648,13 +619,7 @@ const cancelTransfer = async (req, res) => {
             reason: transfer.cancelReason
         });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         await session.abortTransaction();
         return res.status(500).json({ success: false, message: error.message });
@@ -691,13 +656,7 @@ const rejectTransfer = async (req, res) => {
             reason: transfer.rejectReason
         });
 
-
-        const populated = await StockTransfer.findById(transfer._id)
-            .populate("fromBranch", "name code")
-            .populate("toBranch", "name code")
-            .populate("items.product", "name sku barcode");
-
-        return res.status(200).json({ success: true, data: populated });
+        return res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
     }

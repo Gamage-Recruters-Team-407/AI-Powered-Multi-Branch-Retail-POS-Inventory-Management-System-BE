@@ -7,22 +7,17 @@ class DashboardController {
    * GET /api/dashboard/stats
    */
   async getDashboardStats(req, res) {
-    
     try {
       const { startDate, endDate, branchId, includeEmployees, includeInventory, includeSales, includeForecast } = req.query;
 
       const options = {};
 
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        options.startDate = start;
+        options.startDate = new Date(startDate);
       }
 
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        options.endDate = end;
+        options.endDate = new Date(endDate);
       }
 
       if (branchId) {
@@ -50,8 +45,6 @@ class DashboardController {
       });
     }
   }
-
-  
 
   /**
    * Get KPI summary cards data

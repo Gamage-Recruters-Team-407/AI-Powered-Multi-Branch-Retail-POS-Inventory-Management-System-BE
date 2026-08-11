@@ -35,6 +35,7 @@ const sendEmail = async (to, subject, text, html = '') => {
       text,
       html: html || text
     });
+    // console.log(`[Email Module] Email sent: ${info.messageId}`);
     
     await EmailLog.create({
       recipient: to,
@@ -46,6 +47,8 @@ const sendEmail = async (to, subject, text, html = '') => {
     
     return true;
   } catch (error) {
+    // console.error(`[Email Error] Failed to send email to ${to}:`, error.message);
+    
     await EmailLog.create({
       recipient: to,
       subject,

@@ -1,11 +1,18 @@
-const branchService = require("../services/branchService.js");
+const Branch = require("../models/Branch.js");
+const { isMongoConnected } = require("../middleware/requireMongoConnection");
+
+// You will likely need these models too (adjust names if different)
+const Inventory = require("../models/Inventory.js");
+const Sale = require("../models/Sale.js");
+const Employee = require("../models/User.js");
+const systemEvents = require("../events/eventBus.js");
 
 // ===============================
 // CREATE BRANCH
 // ===============================
 const createBranch = async (req, res) => {
   try {
-    const branch = await branchService.createBranch(req.body);
+    const branch = await Branch.create(req.body);
 
     res.status(201).json({
       message: "Branch created successfully",
@@ -23,7 +30,11 @@ const createBranch = async (req, res) => {
 // ===============================
 const getAllBranches = async (req, res) => {
   try {
-    const branches = await branchService.getAllBranches();
+    if (!isMongoConnected()) {
+      return res.status(200).json([]);
+    }
+
+    const branches = await Branch.find().populate("manager");
 
     res.status(200).json(branches);
   } catch (error) {
@@ -38,10 +49,19 @@ const getAllBranches = async (req, res) => {
 // ===============================
 const getBranchById = async (req, res) => {
   try {
-    const branchData = await branchService.getBranchById(req.params.id);
-
-    if (!branchData) {
+    const branch = await Branch.findById(req.params.id)
+      .populate("manager", "firstName lastName email");
+      
+    if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
+    }
+
+    const branchData = branch.toObject();
+
+    if (branchData.manager) {
+      const m = branchData.manager;
+      branchData.manager.displayName = 
+        `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.email || "N/A";
     }
 
     res.status(200).json(branchData);
@@ -57,11 +77,25 @@ const getBranchById = async (req, res) => {
 // ===============================
 const updateBranch = async (req, res) => {
   try {
-    const branch = await branchService.updateBranch(req.params.id, req.body);
+    const branch = await Branch.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { returnDocument: 'after' }
+    );
 
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
+
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'INFO',
+      title: 'Branch Details Updated',
+      message: `The details for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
 
     res.status(200).json({
       message: "Branch updated successfully",
@@ -79,7 +113,7 @@ const updateBranch = async (req, res) => {
 // ===============================
 const deleteBranch = async (req, res) => {
   try {
-    const branch = await branchService.deleteBranch(req.params.id);
+    const branch = await Branch.findByIdAndDelete(req.params.id);
 
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
@@ -101,7 +135,10 @@ const deleteBranch = async (req, res) => {
 const searchBranches = async (req, res) => {
   try {
     const { q } = req.query;
-    const branches = await branchService.searchBranches(q);
+
+    const branches = await Branch.find({
+      name: { $regex: q, $options: "i" },
+    });
 
     res.status(200).json(branches);
   } catch (error) {
@@ -116,7 +153,9 @@ const searchBranches = async (req, res) => {
 // ===============================
 const getBranchInventory = async (req, res) => {
   try {
-    const inventory = await branchService.getBranchInventory(req.params.id);
+    const inventory = await Inventory.find({
+      branch: req.params.id,
+    }).populate("product");
 
     res.status(200).json(inventory);
   } catch (error) {
@@ -131,7 +170,9 @@ const getBranchInventory = async (req, res) => {
 // ===============================
 const getBranchSales = async (req, res) => {
   try {
-    const sales = await branchService.getBranchSales(req.params.id);
+    const sales = await Sale.find({
+      branch: req.params.id,
+    });
 
     res.status(200).json(sales);
   } catch (error) {
@@ -146,11 +187,20 @@ const getBranchSales = async (req, res) => {
 // ===============================
 const getBranchEmployees = async (req, res) => {
   try {
-    const safeEmployees = await branchService.getBranchEmployees(
-      req.params.id
-    );
+    const employees = await Employee.find({
+      branch: req.params.id,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
+    });
+
+    const safeEmployees = employees.map(emp => ({
+      _id: emp._id,
+      name: `${emp.firstName || ""} ${emp.lastName || ""}`,
+      email: emp.email,
+      role: emp.role
+    }));
 
     res.status(200).json(safeEmployees);
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -161,11 +211,33 @@ const getBranchEmployees = async (req, res) => {
 // ===============================
 const getBranchPerformance = async (req, res) => {
   try {
-    const performance = await branchService.getBranchPerformance(
-      req.params.id
+    const branchId = req.params.id;
+
+    const sales = await Sale.find({ branch: branchId });
+
+    const totalSales = sales.length;
+
+    const totalRevenue = sales.reduce(
+      (sum, sale) => sum + (sale.totalAmount || 0),
+      0
     );
 
-    res.status(200).json(performance);
+    const inventoryCount = await Inventory.countDocuments({
+      branch: branchId,
+    });
+
+    const employeeCount = await Employee.countDocuments({
+      branch: branchId,
+      role: { $in: ['CASHIER', 'MANAGER', 'INVENTORY', 'EMPLOYEE', 'cashier', 'manager', 'inventory', 'employee'] }
+    });
+
+    res.status(200).json({
+      branchId,
+      totalSales,
+      totalRevenue,
+      inventoryCount,
+      employeeCount,
+    });
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -178,35 +250,30 @@ const getBranchPerformance = async (req, res) => {
 // ===============================
 const updateBranchSettings = async (req, res) => {
   try {
-    const branch = await branchService.updateBranchSettings(
+    const branch = await Branch.findByIdAndUpdate(
       req.params.id,
-      req.body
+      { settings: req.body },
+      { returnDocument: 'after' }
     );
 
     if (!branch) {
       return res.status(404).json({ message: "Branch not found" });
     }
 
+    // Trigger a notification
+    systemEvents.emit('SEND_ALERT', {
+      target: { role: 'Admin' }, 
+      category: 'SYSTEM',
+      type: 'WARNING',
+      title: 'Branch Settings Changed',
+      message: `The configuration settings for branch "${branch.name}" have been modified.`,
+      channels: ['in-app']
+    });
+
     res.status(200).json({
       message: "Branch settings updated",
       branch,
     });
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// ===============================
-// GET ALL BRANCHES WITH PERFORMANCE (I ADD THIS FOR ADMIN DASHBOARD) - BONUS
-// ===============================
-const getAllBranchesWithPerformance = async (req, res) => {
-  try {
-    const branchesWithStats =
-      await branchService.getAllBranchesWithPerformance();
-
-    res.status(200).json(branchesWithStats);
   } catch (error) {
     res.status(500).json({
       message: error.message,
@@ -228,6 +295,5 @@ module.exports = {
   getBranchSales,
   getBranchEmployees,
   getBranchPerformance,
-  getAllBranchesWithPerformance,
   updateBranchSettings,
 };

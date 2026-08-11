@@ -86,10 +86,9 @@ class CustomerService {
     } */
 
     // LOYALTY POINT UPDATE (CALLED FROM POS)
-    // Change //OLD Code // const points = Math.floor(amount / 1000);
     async addLoyaltyPoints(customerId, amount) {
 
-        const points = amount / 1000;
+        const points = Math.floor(amount / 1000);
 
         const customer = await Customer.findByIdAndUpdate(
             customerId,

@@ -115,55 +115,8 @@ const updateInventoryStock = async (
     };
 };
 
-/**
- * Automatically inspects the database to ensure all products have inventory records for all branches.
- */
-const seedMissingInventories = async () => {
-    try {
-        const Product = require("../models/Product");
-        const Branch = require("../models/Branch");
-        const Inventory = require("../models/Inventory");
-
-        const products = await Product.find({});
-        const branches = await Branch.find({});
-
-        if (products.length === 0 || branches.length === 0) {
-            return;
-        }
-
-        let createdCount = 0;
-
-        for (const product of products) {
-            for (const branch of branches) {
-                const existing = await Inventory.findOne({
-                    product: product._id,
-                    branch: branch._id
-                });
-
-                if (!existing) {
-                    await Inventory.create({
-                        product: product._id,
-                        branch: branch._id,
-                        quantity: 0,
-                        reservedStock: 0,
-                        lowStockAlert: false
-                    });
-                    createdCount++;
-                }
-            }
-        }
-
-        if (createdCount > 0) {
-            console.log(`[Inventory Seeder] Created ${createdCount} missing inventory records on startup.`);
-        }
-    } catch (err) {
-        console.error("Error seeding missing inventories on startup:", err.message);
-    }
-};
-
 module.exports = {
     calculateStockAfterMovement,
     validateReorderPoint,
-    updateInventoryStock,
-    seedMissingInventories
+    updateInventoryStock
 };

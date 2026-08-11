@@ -16,8 +16,7 @@ const sendSMS = async (to, body) => {
     // Clean the phone number for Notify.lk (e.g. remove + sign)
     const cleanTo = to.replace('+', '');
 
-    // SECURITY WARNING: Never log the full URL — it contains the API key.
-    // Notify.lk requires credentials as GET query params; this is their API design.
+    // Notify.lk GET API endpoint
     const url = `https://app.notify.lk/api/v1/send?user_id=${userId}&api_key=${apiKey}&sender_id=${senderId}&to=${cleanTo}&message=${encodeURIComponent(body)}`;
 
     const response = await axios.get(url);
@@ -26,7 +25,7 @@ const sendSMS = async (to, body) => {
       console.log(`[Notify.lk SMS] Sent successfully to ${cleanTo}`);
       return true;
     } else {
-      console.error(`[Notify.lk Error] Failed to send SMS to ${cleanTo}. Response status not success.`);
+      console.error(`[Notify.lk Error] Failed to send SMS to ${to}:`, response.data);
       return false;
     }
   } catch (error) {
