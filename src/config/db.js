@@ -1,64 +1,37 @@
-const mongoose = require('mongoose');
-const dns = require('dns');
+import mongoose from "mongoose";
 
-// Fix Node.js DNS resolution order for Windows and Vercel/Lambda serverless
-if (dns.setDefaultResultOrder) {
-	try {
-		dns.setDefaultResultOrder('ipv4first');
-	} catch (_) {}
-}
+let connectionPromise = null;
 
-// Force Google/Cloudflare DNS to fix SRV lookup failures on serverless environments
-try {
-	dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
-} catch (_) {}
+export const connectDB = async () => {
+  // readyState === 1 means CONNECTED (not 2 = connecting!)
+  if (mongoose.connection.readyState === 1) {
+    return;
+  }
 
-mongoose.set('strictQuery', false);
+  // If already connecting, wait for that — don't open a second connection
+  if (connectionPromise) {
+    return connectionPromise;
+  }
 
-// Global connection caching for serverless environments (Vercel / Lambda)
-let cached = global.mongoose;
-if (!cached) {
-	cached = global.mongoose = { conn: null, promise: null };
-}
+  const mongoUri = process.env.MONGO_URI;
+  if (!mongoUri) {
+    throw new Error("MONGO_URI is not defined in environment variables");
+  }
 
-const connectDB = async () => {
-	const mongoUri = process.env.MONGO_URI;
-	const dbName = process.env.DB_NAME || 'retail_pos_db';
+  connectionPromise = mongoose
+    .connect(mongoUri, {
+      serverSelectionTimeoutMS: 10000,
+      bufferCommands: false, // Fail fast instead of buffering queries
+    })
+    .then(() => {
+      console.log("MongoDB connected successfully");
+      connectionPromise = null;
+    })
+    .catch((err) => {
+      console.error("MongoDB connection failed:", err.message);
+      connectionPromise = null;
+      throw err;
+    });
 
-	if (!mongoUri) {
-		const msg = 'MONGO_URI environment variable is missing!';
-		console.error(msg);
-		throw new Error(msg);
-	}
-
-	if (cached.conn && mongoose.connection.readyState === 1) {
-		return cached.conn;
-	}
-
-	if (!cached.promise) {
-		const opts = {
-			dbName,
-			family: 4, // Force IPv4
-			serverSelectionTimeoutMS: 10000,
-			connectTimeoutMS: 10000,
-			socketTimeoutMS: 45000,
-		};
-
-		cached.promise = mongoose.connect(mongoUri, opts).then((m) => {
-			console.log(`MongoDB Connected: ${m.connection.host}/${m.connection.name}`);
-			return m.connection;
-		});
-	}
-
-	try {
-		cached.conn = await cached.promise;
-	} catch (e) {
-		cached.promise = null;
-		console.error(`MongoDB connection failed: ${e.message}`);
-		throw e;
-	}
-
-	return cached.conn;
+  return connectionPromise;
 };
-
-module.exports = connectDB;
