@@ -14,6 +14,15 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
+// Fix Windows DNS SRV lookup failures for mongodb+srv:// URIs
+// Node.js on Windows sometimes fails to resolve SRV records via the local router DNS.
+// Using Google/Cloudflare DNS directly resolves this (local dev only - Vercel uses api/index.js).
+if (!process.env.VERCEL) {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+  } catch (_) {}
+}
+
 const app = require('./app');
 const connectDB = require('./config/db'); // Default function import
 
